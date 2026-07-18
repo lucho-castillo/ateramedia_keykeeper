@@ -113,13 +113,14 @@ function setSessionCookie(res, token) {
     `sk_session=${token}`,
     'HttpOnly',
     'Path=/',
-    'SameSite=Strict',
+    'Secure',
+    'SameSite=Lax',
     `Max-Age=${SESSION_TTL}`
   ];
   res.setHeader('Set-Cookie', attrs.join('; '));
 }
 function clearSessionCookie(res) {
-  res.setHeader('Set-Cookie', 'sk_session=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0');
+  res.setHeader('Set-Cookie', 'sk_session=; HttpOnly; Path=/; Secure; SameSite=Lax; Max-Age=0');
 }
 function currentUser(req) {
   const token = getSessionToken(req);
