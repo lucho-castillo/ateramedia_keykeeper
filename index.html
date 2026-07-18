@@ -802,7 +802,7 @@ const SK_API = {
 
 function deriveKey(password, saltHex){
   const salt = CryptoJS.enc.Hex.parse(saltHex);
-  return CryptoJS.PBKDF2(password, salt, { keySize: 256/32, iterations: 120000 });
+  return CryptoJS.PBKDF2(password, salt, { keySize: 256/32, iterations: 600000 });
 }
 function verifierOf(keyWordArray){
   return CryptoJS.SHA256(keyWordArray.toString()).toString();
@@ -1399,7 +1399,7 @@ function renderSettings(c){
     </div>
     <div class="settings-section">
       <h3>Acerca de la seguridad</h3>
-      <p class="hint" style="line-height:1.6;">Todos los datos se cifran localmente con AES-256 usando una clave derivada de tu clave maestra mediante PBKDF2 (120.000 iteraciones) antes de guardarse. La clave maestra nunca se almacena ni se transmite.</p>
+      <p class="hint" style="line-height:1.6;">Todos los datos se cifran localmente con AES-256 usando una clave derivada de tu clave maestra mediante PBKDF2 (600.000 iteraciones) antes de guardarse. La clave maestra nunca se almacena ni se transmite.</p>
     </div>
   `;
   document.querySelectorAll('#autolockRow .radio-pill').forEach(btn=>{

@@ -71,8 +71,10 @@ Notas:
   proxy de Railway.
 - La primera vez crea la BD en `DB_PATH`. Si no usas Volume, los datos no
   persisten entre reinicios del deploy.
-- Para producción: sube PBKDF2 a 600k iteraciones y añade rate limiting a
-  `/api/login` (ver sección "Siguiente fase").
+- Para producción: usa PBKDF2 a 600.000 iteraciones (ya configurado en el
+  frontend) y el rate limiting en `/api/login` ya está activo (máx 10
+  intentos / IP / 15 min; 5 registros / IP / hora). Sube esos límites si
+  tu equipo es grande.
 
 ## Despliegue local (pruebas)
 
