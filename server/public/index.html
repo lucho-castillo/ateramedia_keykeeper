@@ -781,6 +781,9 @@ window.storage = {
     return local;   // fallback offline
   },
   async set(key, value){
+    // Siempre cacheamos en localStorage: si la cookie de sesion se pierde al
+    // recargar, el GET cae a localStorage y el vault sobrevive (luego re-sync).
+    try{ localStorage.setItem(key, value); }catch(e){}
     try{
       const resp = await fetch('/api/vault/' + key, {
         method:'PUT', credentials:'include',
@@ -791,7 +794,6 @@ window.storage = {
       if(resp.ok) return;
       console.warn('[storage] PUT', key, 'no ok:', resp.status);
     }catch(e){ console.warn('[storage] PUT fallo (server caido?)', e); }
-    try{ localStorage.setItem(key, value); console.log('[storage] guardado en localStorage', key); }catch(e){ console.error('[storage] localStorage fallo', e); }   // fallback offline
   }
 };
 
