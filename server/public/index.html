@@ -755,17 +755,30 @@ let accountEmail = null;  // cuenta autenticada en el servidor (NO la clave maes
    Reemplaza el window.storage roto por una implementacion que:
    (a) funciona en local si el servidor no responde (fallback a localStorage), y
    (b) sincroniza el vault cifrado contra el backend /api/vault/*.
-   El servidor solo guarda ciphertext: zero-knowledge. */
+   El servidor solo guarda ciphertext: zero-knowledge.
+   v2: el get no pierde datos si el server responde null pero hay localStorage,
+   y ambos loguean en consola para diagnosticar (F12 -> Console). */
 window.storage = {
   async get(key){
     try{
       const resp = await fetch('/api/vault/' + key, { credentials:'include' });
+      console.log('[storage] GET', key, '->', resp.status);
       if(resp.ok){
         const j = await resp.json();
+        const local = localStorage.getItem(key);
+        // Si el server esta vacio pero hay copia local, la usamos y re-sincronizamos.
+        if((j.value === null || j.value === undefined) && local){
+          console.log('[storage] server vacio, uso localStorage y re-sync');
+          this.set(key, local);
+          return local;
+        }
         return j.value;            // string o null
       }
-    }catch(e){ /* servidor caido -> fallback local */ }
-    return localStorage.getItem(key);   // fallback offline
+      console.warn('[storage] GET', key, 'no ok:', resp.status);
+    }catch(e){ console.warn('[storage] GET fallo (server caido?)', e); }
+    const local = localStorage.getItem(key);
+    if(local) console.log('[storage] fallback localStorage', key);
+    return local;   // fallback offline
   },
   async set(key, value){
     try{
@@ -774,9 +787,11 @@ window.storage = {
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ value: value })
       });
+      console.log('[storage] PUT', key, '->', resp.status);
       if(resp.ok) return;
-    }catch(e){ /* servidor caido -> fallback local */ }
-    try{ localStorage.setItem(key, value); }catch(e){}   // fallback offline
+      console.warn('[storage] PUT', key, 'no ok:', resp.status);
+    }catch(e){ console.warn('[storage] PUT fallo (server caido?)', e); }
+    try{ localStorage.setItem(key, value); console.log('[storage] guardado en localStorage', key); }catch(e){ console.error('[storage] localStorage fallo', e); }   // fallback offline
   }
 };
 
