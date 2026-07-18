@@ -18,7 +18,7 @@ const rateLimit = require('express-rate-limit');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 3000;
-const ROOT = path.resolve(__dirname, '..');           // carpeta supreme_key
+const ROOT = path.join(__dirname, 'public');             // frontend servido al public/
 // En local la DB vive en la carpeta del server; en hostings (Railway/Render)
 // se monta un disco persistente y se pasa su ruta en DB_PATH.
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'supreme_key.db');
