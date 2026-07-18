@@ -1,5 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "rootDir": "server",
   "build": {
     "builder": "nixpacks",
     "environment": {
