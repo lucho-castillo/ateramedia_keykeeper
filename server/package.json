@@ -1,0 +1,16 @@
+{
+  "name": "supreme-key-server",
+  "version": "1.0.0",
+  "description": "Backend Nivel 1 para Supreme Key: auth de cuenta + sincronizacion del vault cifrado (zero-knowledge).",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
