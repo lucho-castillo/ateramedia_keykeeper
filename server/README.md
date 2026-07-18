@@ -48,7 +48,42 @@ vacío al volver a registrar).
 - Concurrencia: el vault es un blob único (last-write-wins). Si editas en dos
   equipos a la vez, gana el último guardado.
 
-## Siguiente fase (Nivel 2, no implementado)
+## Despliegue en Railway (Opción 1 — recomendada)
+
+Railway corre Node + SQLite y te da **HTTPS automático**. El repo ya trae
+`railway.json` y el server respeta `PORT` y `DB_PATH`.
+
+1. Entra a https://railway.app y crea una cuenta (puedes usar GitHub).
+2. "New Project" → "Deploy from GitHub repo" → elige
+   **lucho-castillo/ateramedia_keykeeper**.
+3. Railway detecta `package.json` y usa `npm start` (definido en railway.json).
+4. En la pestaña del servicio → **Variables**, agrega:
+     - `PORT` = 3000  (Railway lo sobreescribe con el suyo, pero definirlo evita sorpresas)
+     - `DB_PATH` = /data/supreme_key.db  (ruta DENTRO del Volume persistente)
+       IMPORTANTE: primero crea un **Volume** en "Settings → Volumes" montado
+       en `/data`, si no la DB se borra en cada reinicio.
+5. En "Settings → Domains" Railway te da una URL https
+   (ej. https://ateramedia-keykeeper.up.railway.app). ¡Listo, ya es website!
+6. Abre la URL, crea tu cuenta y tu clave maestra.
+
+Notas:
+- El servidor ya usa `app.set('trust proxy', 1)` para funcionar detrás del
+  proxy de Railway.
+- La primera vez crea la BD en `DB_PATH`. Si no usas Volume, los datos no
+  persisten entre reinicios del deploy.
+- Para producción: sube PBKDF2 a 600k iteraciones y añade rate limiting a
+  `/api/login` (ver sección "Siguiente fase").
+
+## Despliegue local (pruebas)
+
+```bash
+cd D:\supreme_key\server
+npm install
+npm start
+```
+Abre http://localhost:3000
+
+## Seguridad — lee esto antes de exponerlo
 
 Cifrado por campo + usuarios + compartir grupos entre personas distintas +
 edición concurrente por registro + HTTPS.

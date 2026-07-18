@@ -18,8 +18,13 @@ const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(__dirname, '..');           // carpeta supreme_key
-const DB_PATH = path.join(__dirname, 'supreme_key.db');
+// En local la DB vive en la carpeta del server; en hostings (Railway/Render)
+// se monta un disco persistente y se pasa su ruta en DB_PATH.
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'supreme_key.db');
 const SESSION_TTL = 30 * 24 * 3600;                    // 30 dias
+
+// Asegura que el directorio de la DB exista (los Volumes pueden no crearlo).
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 // ---------- Base de datos ----------
 const db = new DatabaseSync(DB_PATH);
@@ -65,6 +70,7 @@ function timingSafeEqual(a, b) {
 
 // ---------- App ----------
 const app = express();
+app.set('trust proxy', 1);   // detras de proxy inverso (Railway/Render/Caddy)
 app.use(express.json({ limit: '5mb' }));
 
 // CORS permisivo para /api (permite probar el frontend desde otro origen si hiciera falta)
@@ -213,6 +219,9 @@ app.use(express.static(ROOT, {
 }));
 
 app.listen(PORT, () => {
-  console.log(`Supreme Key server en http://localhost:${PORT}`);
-  console.log(`BD local: ${DB_PATH}`);
+  const base = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : `http://localhost:${PORT}`;
+  console.log(`Supreme Key server en ${base}`);
+  console.log(`BD: ${DB_PATH}`);
 });
