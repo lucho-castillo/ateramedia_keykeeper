@@ -1959,7 +1959,7 @@ function wireCloudUI(){
     const key = deriveKey(pw, salt);
     const verifier = verifierOf(key);
     const vaultEnc = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, key);
-    const r = await apiJSON('POST', '/api/register', { email, salt, verifier, vault: vaultEnc });
+    const r = await apiJSON('POST', '/api/register', { email, password: pw, salt, verifier, vault: vaultEnc });
     if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'No se pudo crear la cuenta.'; return; }
     cloudSessionKey = key; cloudSessionSalt = salt; cloudSessionVerifier = verifier;
     showLoggedIn(email);
@@ -1975,7 +1975,7 @@ function wireCloudUI(){
     const salt = CryptoJS.lib.WordArray.random(16).toString();
     const key = deriveKey(pw, salt);
     const verifier = verifierOf(key);
-    const r = await apiJSON('POST', '/api/login', { email, salt, verifier });
+    const r = await apiJSON('POST', '/api/login', { email, password: pw, salt, verifier });
     if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'Credenciales incorrectas.'; return; }
     cloudSessionKey = key; cloudSessionSalt = salt; cloudSessionVerifier = verifier;
     showLoggedIn(email);
