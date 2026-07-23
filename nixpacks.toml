@@ -1,0 +1,11 @@
+# Nixpacks config — forza npm install (no npm ci) para evitar el fallo
+# "npm ci can only install with an existing package-lock.json" en Railway,
+# ya que con rootDir el lockfile a veces no llega al contexto de build.
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[start]
+cmd = "npm start"
