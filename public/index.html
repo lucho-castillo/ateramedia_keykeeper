@@ -2000,8 +2000,11 @@ async function cloudPush(){
   if(!cloudSessionKey){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
   syncStatusEl.style.color = 'var(--text-dim)'; syncStatusEl.textContent = 'Subiendo…';
   const vaultEnc = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, cloudSessionKey);
-  const r = await apiJSON('POST', '/api/vault', { vault: vaultEnc });
-  if(!r.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r.data && r.data.error) || 'Error al subir.'; return; }
+  const meta = JSON.stringify({ salt: cloudSessionSalt, verifier: cloudSessionVerifier });
+  const rMeta = await apiJSON('PUT', '/api/vault/meta', { value: meta });
+  if(!rMeta.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (rMeta.data && rMeta.data.error) || 'Error al subir.'; return; }
+  const rData = await apiJSON('PUT', '/api/vault/data', { value: vaultEnc });
+  if(!rData.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (rData.data && rData.data.error) || 'Error al subir.'; return; }
   syncStatusEl.style.color = 'var(--success)'; syncStatusEl.textContent = 'Vault subido a la nube ✓';
   showToast('Vault subido a la nube');
 }
@@ -2010,10 +2013,16 @@ async function cloudPull(silent){
   const syncStatusEl = document.getElementById('cloudSyncStatus');
   if(!cloudSessionKey){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
   if(!silent){ syncStatusEl.style.color = 'var(--text-dim)'; syncStatusEl.textContent = 'Bajando…'; }
-  const r = await apiJSON('GET', '/api/vault');
-  if(!r.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r.data && r.data.error) || 'Error al bajar.'; return; }
-  const remote = r.data && r.data.vault;
+  const rMeta = await apiJSON('GET', '/api/vault/meta');
+  if(!rMeta.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (rMeta.data && rMeta.data.error) || 'Error al bajar.'; return; }
+  const rData = await apiJSON('GET', '/api/vault/data');
+  if(!rData.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (rData.data && rData.data.error) || 'Error al bajar.'; return; }
+  const metaStr = rMeta.data && rMeta.data.value;
+  const remote = rData.data && rData.data.value;
   if(!remote){ if(!silent){ syncStatusEl.textContent = 'La nube está vacía.'; } return; }
+  try {
+    if(metaStr){ const m = JSON.parse(metaStr); if(m.salt) cloudSessionSalt = m.salt; if(m.verifier) cloudSessionVerifier = m.verifier; }
+  } catch(e){ /* meta no parseable: ignora */ }
   let imported;
   try { imported = decryptVault(remote, cloudSessionKey); }
   catch(e){ syncStatusEl.style.color='var(--danger-soft)'; syncStatusEl.textContent='No se pudo descifrar (clave distinta).'; return; }
