@@ -4,7 +4,8 @@
   "build": {
     "builder": "nixpacks",
     "environment": {
-      "NODE_VERSION": "22"
+      "NODE_VERSION": "22",
+      "NIXPACKS_INSTALL_CMD": "npm install"
     }
   },
   "deploy": {
