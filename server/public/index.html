@@ -1644,9 +1644,9 @@ function renderSettings(c){
             <input type="email" id="cloudEmail" placeholder="tu@correo.com" autocomplete="username">
           </div>
           <div class="field" style="margin-bottom:0;flex:1;min-width:200px;">
-            <label>Contraseña de cuenta (nube)</label>
+            <label>Clave maestra</label>
             <div class="pw-input-wrap">
-              <input type="password" id="cloudPw" placeholder="Contraseña de tu cuenta en la nube" autocomplete="current-password">
+              <input type="password" id="cloudPw" placeholder="Tu clave maestra" autocomplete="current-password">
               <button class="pw-toggle" data-toggle="cloudPw" type="button"></button>
             </div>
           </div>
@@ -1665,6 +1665,7 @@ function renderSettings(c){
           <span id="cloudSyncStatus" style="font-size:12.5px;color:var(--text-dim);"></span>
         </div>
         <p class="hint" style="margin-top:10px;">"Subir" sobrescribe la copia de la nube con este dispositivo. "Bajar" trae la copia de la nube y la fusiona ( conserva lo más reciente por credencial).</p>
+        <a href="README-SINCRONIZACION-NUBE.md" target="_blank" rel="noopener noreferrer" class="hint" style="display:inline-flex;align-items:center;gap:5px;color:var(--brass-soft);text-decoration:underline;margin-top:6px;">Ayuda: cómo usar la sincronización en la nube →</a>
       </div>
     </div>
     <div class="settings-section">
@@ -1914,15 +1915,11 @@ function safeUrl(u){
 }
 
 /* ---------- SINCRONIZACIÓN EN LA NUBE (zero-knowledge) ----------
-   Se integra con el backend "Supreme Key" existente (server.js):
-     • Cuenta: email + PASSWORD DE CUENTA (distinto de la clave maestra del vault).
-     • Vault cifrado en dos partes: meta = JSON {salt,verifier} del vault,
-       data = blob "iv:ct" cifrado con la CLAVE MAESTRA del vault.
-   El servidor solo guarda meta+data cifrados; la clave maestra NUNCA viaja.
-   El IndexedDB local queda como caché offline. */
+   El servidor solo recibe: salt, verifier (SHA-256 de la clave derivada) y
+   el vault YA cifrado. La clave maestra nunca se envía. El IndexedDB local
+   queda como caché offline; la nube es la fuente de verdad entre dispositivos. */
 const CLOUD_STATE = { loggedIn: false, email: null };
-// Material del VAULT (derivado de la clave maestra local), para cifrar/descifrar el blob.
-let cloudVaultKey = null, cloudVaultSalt = null, cloudVaultVerifier = null;
+let cloudSessionKey = null, cloudSessionSalt = null, cloudSessionVerifier = null;
 
 async function apiJSON(method, path, body){
   const res = await fetch(path, {
@@ -1953,37 +1950,34 @@ function wireCloudUI(){
     syncArea.classList.add('hidden');
   }
 
-  // Prepara el material del vault con la clave maestra LOCAL (vaultKey ya derivada).
-  function prepareVaultMaterial(){
-    if(cloudVaultKey) return true;
-    if(!vaultKey) return false;
-    cloudVaultKey = vaultKey;
-    cloudVaultSalt = (currentMeta && currentMeta.salt) || CryptoJS.lib.WordArray.random(16).toString();
-    cloudVaultVerifier = verifierOf(vaultKey);
-    return true;
-  }
-
   document.getElementById('cloudRegBtn').addEventListener('click', async ()=>{
     const email = document.getElementById('cloudEmail').value.trim();
-    const accountPw = document.getElementById('cloudPw').value;
-    if(accountPw.length < 8){ statusEl.style.color='var(--danger-soft)'; statusEl.textContent='La contraseña de cuenta debe tener al menos 8 caracteres.'; return; }
-    if(!prepareVaultMaterial()){ statusEl.style.color='var(--danger-soft)'; statusEl.textContent='Crea primero tu clave maestra del vault (en la pantalla inicial).'; return; }
-    statusEl.style.color = 'var(--text-dim)'; statusEl.textContent = 'Creando cuenta…';
-    const r = await apiJSON('POST', '/api/register', { email, password: accountPw });
+    const pw = document.getElementById('cloudPw').value;
+    statusEl.style.color = 'var(--text-dim)';
+    statusEl.textContent = 'Creando cuenta…';
+    const salt = CryptoJS.lib.WordArray.random(16).toString();
+    const key = deriveKey(pw, salt);
+    const verifier = verifierOf(key);
+    const vaultEnc = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, key);
+    const r = await apiJSON('POST', '/api/register', { email, salt, verifier, vault: vaultEnc });
     if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'No se pudo crear la cuenta.'; return; }
+    cloudSessionKey = key; cloudSessionSalt = salt; cloudSessionVerifier = verifier;
     showLoggedIn(email);
-    syncStatusEl.textContent = 'Cuenta creada. Subiendo vault…';
-    await cloudPush();
+    syncStatusEl.textContent = 'Cuenta creada y vault inicial guardado.';
     showToast('Cuenta creada en la nube');
   });
 
   document.getElementById('cloudLoginBtn').addEventListener('click', async ()=>{
     const email = document.getElementById('cloudEmail').value.trim();
-    const accountPw = document.getElementById('cloudPw').value;
+    const pw = document.getElementById('cloudPw').value;
     statusEl.style.color = 'var(--text-dim)';
     statusEl.textContent = 'Iniciando sesión…';
-    const r = await apiJSON('POST', '/api/login', { email, password: accountPw });
+    const salt = CryptoJS.lib.WordArray.random(16).toString();
+    const key = deriveKey(pw, salt);
+    const verifier = verifierOf(key);
+    const r = await apiJSON('POST', '/api/login', { email, salt, verifier });
     if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'Credenciales incorrectas.'; return; }
+    cloudSessionKey = key; cloudSessionSalt = salt; cloudSessionVerifier = verifier;
     showLoggedIn(email);
     syncStatusEl.textContent = 'Sesión iniciada.';
     showToast('Sesión iniciada en la nube');
@@ -1994,7 +1988,7 @@ function wireCloudUI(){
   document.getElementById('cloudPullBtn').addEventListener('click', ()=> cloudPull(false));
   document.getElementById('cloudLogoutBtn').addEventListener('click', async ()=>{
     await apiJSON('POST', '/api/logout');
-    cloudVaultKey = null; cloudVaultSalt = null; cloudVaultVerifier = null;
+    cloudSessionKey = null; cloudSessionSalt = null; cloudSessionVerifier = null;
     showLoggedOut();
     statusEl.textContent = '';
     showToast('Sesión de la nube cerrada');
@@ -2003,35 +1997,26 @@ function wireCloudUI(){
 
 async function cloudPush(){
   const syncStatusEl = document.getElementById('cloudSyncStatus');
-  if(!CLOUD_STATE.loggedIn){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
-  if(!cloudVaultKey && !prepareVaultMaterial()){ syncStatusEl.textContent = 'Crea tu clave maestra del vault primero.'; return; }
+  if(!cloudSessionKey){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
   syncStatusEl.style.color = 'var(--text-dim)'; syncStatusEl.textContent = 'Subiendo…';
-  // meta: información de la clave del vault (no la clave en sí). data: blob cifrado.
-  const meta = JSON.stringify({ salt: cloudVaultSalt, verifier: cloudVaultVerifier, updatedAt: Date.now() });
-  const data = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, cloudVaultKey);
-  const r1 = await apiJSON('PUT', '/api/vault/meta', { value: meta });
-  if(!r1.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r1.data && r1.data.error) || 'Error al subir.'; return; }
-  const r2 = await apiJSON('PUT', '/api/vault/data', { value: data });
-  if(!r2.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r2.data && r2.data.error) || 'Error al subir.'; return; }
+  const vaultEnc = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, cloudSessionKey);
+  const r = await apiJSON('POST', '/api/vault', { vault: vaultEnc });
+  if(!r.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r.data && r.data.error) || 'Error al subir.'; return; }
   syncStatusEl.style.color = 'var(--success)'; syncStatusEl.textContent = 'Vault subido a la nube ✓';
   showToast('Vault subido a la nube');
 }
 
 async function cloudPull(silent){
   const syncStatusEl = document.getElementById('cloudSyncStatus');
-  if(!CLOUD_STATE.loggedIn){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
+  if(!cloudSessionKey){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
   if(!silent){ syncStatusEl.style.color = 'var(--text-dim)'; syncStatusEl.textContent = 'Bajando…'; }
-  const rm = await apiJSON('GET', '/api/vault/meta');
-  const rd = await apiJSON('GET', '/api/vault/data');
-  if(!rm.ok || !rd.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (rm.data && rm.data.error) || 'Error al bajar.'; return; }
-  const remoteData = rd.data && rd.data.value;
-  if(!remoteData){ if(!silent){ syncStatusEl.textContent = 'La nube está vacía.'; } return; }
-  if(!cloudVaultKey && !prepareVaultMaterial()){
-    syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = 'Necesitas tu clave maestra del vault para descifrar.'; return;
-  }
+  const r = await apiJSON('GET', '/api/vault');
+  if(!r.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r.data && r.data.error) || 'Error al bajar.'; return; }
+  const remote = r.data && r.data.vault;
+  if(!remote){ if(!silent){ syncStatusEl.textContent = 'La nube está vacía.'; } return; }
   let imported;
-  try { imported = decryptVault(remoteData, cloudVaultKey); }
-  catch(e){ syncStatusEl.style.color='var(--danger-soft)'; syncStatusEl.textContent='No se pudo descifrar (clave maestra distinta).'; return; }
+  try { imported = decryptVault(remote, cloudSessionKey); }
+  catch(e){ syncStatusEl.style.color='var(--danger-soft)'; syncStatusEl.textContent='No se pudo descifrar (clave distinta).'; return; }
   const summary = mergeVaultData(imported);
   persistVault();
   renderView(currentView);
