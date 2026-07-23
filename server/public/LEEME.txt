@@ -1,77 +1,138 @@
-SUPREME KEY — Gestor de Credenciales
-=====================================
+ATERAMEDIA PASSWORDS MANAGER — Gestor de Credenciales
+========================================================
 
 Este paquete es una aplicación web autónoma (no necesita instalar nada,
 ni conexión a internet, ni servidor). Todas las librerías y tipografías
 están incluidas dentro de la carpeta "vendor" y "icons".
 
 ────────────────────────────────────
+NOVEDADES DE ESTA VERSIÓN (IMPORTANTE)
+────────────────────────────────────
+Se corrigió un bug real de programación (no era un problema de caché
+ni de subida de archivos, aunque lo parecía). El botón "Pegar contenido
+manualmente" de Ajustes intentaba conectarse apenas cargaba la página,
+pero ese botón en realidad se crea recién al entrar a la sección de
+Ajustes (se genera dinámicamente). Eso hacía que el script fallara
+apenas arrancaba, dejando sin conectar TODOS los botones que se
+registran después en el código — por eso la clave maestra funcionaba
+pero crear credenciales, grupos, etc. no respondía.
+
+Se verificó con una prueba automatizada real (no solo lectura de
+código): se simuló crear un vault, guardar una credencial, crear un
+grupo, navegar por todas las secciones y usar los botones de
+sincronización — todo sin errores.
+
+Si ya habías subido una versión anterior con este problema, sube esta
+para corregirlo definitivamente.
+
+────────────────────────────────────
 1) USO MÁS SIMPLE (cualquier PC/Mac)
 ────────────────────────────────────
 Haz doble clic en "index.html". Se abrirá en tu navegador
 (Chrome, Safari, Edge o Firefox) y funcionará 100% offline,
-sin necesidad de instalar nada.
+sin necesidad de instalar nada. Los datos quedan guardados en
+la base de datos local del navegador (IndexedDB) para la próxima vez.
 
 ────────────────────────────────────
 2) INSTALAR COMO APP EN EL CELULAR
-   (para tener el ícono de Supreme Key en la pantalla de inicio
-   y que funcione offline como una app nativa)
 ────────────────────────────────────
 Los navegadores de Android/iOS no permiten instalar apps directamente
-desde un archivo local por temas de seguridad: la carpeta debe sevirse
-desde una URL (http/https). Tienes dos caminos, ambos gratuitos:
+desde un archivo local: la carpeta debe servirse desde una URL
+(http/https). Dos caminos gratuitos:
 
-  OPCIÓN A — Alojarla en un hosting estático gratuito
-  -----------------------------------------------------
-  Sube TODA la carpeta "SupremeKey" (tal cual, sin reordenar archivos) a
-  cualquiera de estos servicios gratuitos:
-    • Netlify Drop  → https://app.netlify.com/drop (arrastrar y soltar)
-    • Vercel        → https://vercel.com
-    • GitHub Pages  → sube el contenido a un repositorio y actívalo
-    • Cloudflare Pages
+  OPCIÓN A — Hosting estático gratuito (ej. GitHub Pages)
+  ---------------------------------------------------------
+  Sube TODA la carpeta "AteraMediaPasswordsManager" (usa "Add file →
+  Upload files" arrastrando los archivos tal cual, no los copies y
+  pegues a mano) a GitHub Pages, Netlify Drop, Vercel o Cloudflare
+  Pages. Luego, desde el celular:
+    - Android (Chrome): menú (⋮) → "Instalar aplicación".
+    - iPhone (Safari): compartir (□↑) → "Añadir a pantalla de inicio".
 
-  Una vez publicada, abre la URL desde tu celular:
-    - Android (Chrome): menú (⋮) → "Instalar aplicación" / "Añadir a
-      pantalla de inicio".
-    - iPhone (Safari): botón compartir (□↑) → "Añadir a pantalla de
-      inicio".
-  Desde ese momento el ícono de la espada en la piedra aparecerá en tu
-  pantalla de inicio y la app abrirá a pantalla completa. El Service
-  Worker incluido guarda todos los archivos en caché, así que después
-  de la primera visita funciona sin internet.
-
-  OPCIÓN B — Servidor local en tu propia red (sin subir nada a internet)
-  -----------------------------------------------------------------------
-  Desde una computadora conectada a la misma red Wi-Fi que tu celular,
-  entra a la carpeta SupremeKey y ejecuta un servidor simple, por
-  ejemplo con Python (ya viene instalado en Mac/Linux):
-
-      cd SupremeKey
-      python3 -m http.server 8080
-
-  Luego, en el navegador del celular, entra a:
-
-      http://IP_DE_TU_COMPUTADORA:8080
-
-  (la IP la ves en los ajustes de Wi-Fi de tu computadora). Desde ahí
-  puedes instalarla igual que en la Opción A.
+  OPCIÓN B — Servidor local en tu red (sin subir nada a internet)
+  -------------------------------------------------------------------
+      cd AteraMediaPasswordsManager
+      python -m http.server 8080
+  Y entra desde el celular a http://IP_DE_TU_PC:8080
 
 ────────────────────────────────────
-3) SEGURIDAD Y DATOS
+3) DÓNDE VIVEN LOS DATOS
 ────────────────────────────────────
-• Los datos (credenciales, grupos) se cifran con AES-256 usando una
-  clave derivada de tu clave maestra (PBKDF2, 120.000 iteraciones)
-  ANTES de guardarse. La clave maestra nunca se guarda ni se envía
-  a ningún servidor.
+• Cada dispositivo guarda sus datos por separado en su propia base de
+  datos local (IndexedDB) — no hay servidor central.
+• Si borras los datos de navegación del sitio, o desinstalas la app,
+  los datos de ese dispositivo se pierden (todo vive cifrado y local).
+• Usa "Informes" para exportar un PDF de respaldo, y "Sincronizar
+  entre dispositivos" (punto 5) para mantener PC y celular al día.
+
+────────────────────────────────────
+4) SEGURIDAD
+────────────────────────────────────
+• Los datos se cifran con AES-256 (clave derivada por PBKDF2, 120.000
+  iteraciones) antes de guardarse en IndexedDB. La clave maestra nunca
+  se guarda en texto plano ni se envía a ningún servidor.
 • Si olvidas tu clave maestra, los datos no se pueden recuperar.
-• Todo el procesamiento ocurre en tu propio dispositivo/navegador,
-  no hay backend ni servicios en la nube involucrados.
+
+────────────────────────────────────
+5) SINCRONIZAR ENTRE DISPOSITIVOS (PC ↔ CELULAR)
+────────────────────────────────────
+En "Ajustes → Sincronizar entre dispositivos":
+  • EXPORTAR: descarga un backup cifrado (.skvault).
+  • IMPORTAR Y FUSIONAR: agrega lo nuevo del otro dispositivo sin
+    borrar nada; si una misma credencial cambió en ambos lados, gana
+    la más reciente.
+  • Si el archivo aparece "ilegible" en iPhone: usa "pegar el
+    contenido manualmente" — abre el .skvault en Archivos o Notas,
+    copia todo el texto, y pégalo directo en la app.
+  • Para restaurar en un dispositivo nuevo: en la pantalla inicial,
+    "¿Ya tienes un backup? Importar vault existente".
+
+────────────────────────────────────
+6) SI ALGO NO RESPONDE: cómo revisar la consola
+────────────────────────────────────
+Si algún botón deja de responder:
+  1. Abre la app en una computadora, presiona F12 → pestaña "Console".
+  2. Copia el mensaje de error completo tal cual aparece (incluye el
+     nombre del archivo, línea y columna).
+  3. Ese mensaje indica exactamente qué elemento o función falló —
+     es la forma más rápida de diagnosticar cualquier problema futuro.
 
 ────────────────────────────────────
 CONTENIDO DEL PAQUETE
 ────────────────────────────────────
 index.html            → la aplicación completa
 manifest.json          → metadatos de instalación (PWA)
-service-worker.js      → habilita el modo offline tras la 1ª visita
+service-worker.js      → habilita el modo offline y autoactualización
 vendor/                → librerías (cifrado, generación de PDF) y fuentes, autoalojadas
 icons/                 → íconos de la app en distintos tamaños (logo espada en la piedra)
+
+────────────────────────────────────
+7) DESPLEGAR EN RAILWAY (servidor zero-knowledge)
+────────────────────────────────────
+Este paquete incluye ahora un pequeño servidor (carpeta "server/") que permite
+sincronizar el vault cifrado entre dispositivos vía API. El servidor NUNCA recibe
+tu clave maestra: solo guarda el vault ya cifrado (AES-256 + PBKDF2 120.000).
+
+Requisitos: Node.js 22+ (en Railway se fija con NODE_VERSION=22).
+Pasos:
+  1. Sube TODO el paquete a un repo de GitHub (la raíz del repo debe contener
+     "railway.json" y la carpeta "server/").
+  2. En Railway: New Project → Deploy from GitHub repo → elige el repo.
+  3. Railway lee "railway.json" automáticamente:
+       • rootDirectory: server
+       • build: nixpacks (npm install)
+       • start: node server.js
+       • Variables: PORT=3000, NODE_VERSION=22, DB_PATH=/data/supreme_key.db
+       • Volumen montado en /data (SQLite persistente; el disco de la app es efímero).
+  4. Deploy. Railway te da una URL https pública. ¡Listo!
+
+En el navegador, entra a la URL, crea tu clave maestra (como siempre) y luego en
+"Ajustes → Sincronizar entre dispositivos (nube)" crea una cuenta con tu correo.
+Tu vault queda guardado cifrado en el servidor y puedes recuperarlo desde cualquier
+otro dispositivo con la misma clave maestra. El respaldo manual por .skvault sigue
+disponible como método alternativo sin servidor.
+
+Notas de seguridad del servidor:
+  • La cookie de sesión es httpOnly + Secure + SameSite=Lax (solo en HTTPS).
+  • El servidor solo almacena salt, verifier y el vault cifrado; jamás la clave.
+  • Si olvidas la clave maestra, el servidor tampoco puede descifrar tus datos.

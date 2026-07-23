@@ -1,6 +1,6 @@
 {
-  "name": "Supreme Key · Gestor de Credenciales",
-  "short_name": "Supreme Key",
+  "name": "AteraMedia Passwords Manager · Gestor de Credenciales",
+  "short_name": "AteraMedia",
   "description": "Plataforma para crear, organizar y resguardar credenciales de trabajo de forma cifrada.",
   "start_url": "./index.html",
   "scope": "./",

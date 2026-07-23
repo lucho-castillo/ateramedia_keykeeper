@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Supreme Key · Gestor de Credenciales</title>
+<title>AteraMedia Passwords Manager · Gestor de Credenciales</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#11151b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Supreme Key">
+<meta name="apple-mobile-web-app-title" content="AteraMedia Passwords">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -161,17 +161,6 @@ svg{display:block;}
 }
 .dial-wrap svg{width:100%;height:100%;}
 #swordGroup{transition:transform .6s cubic-bezier(.2,.9,.25,1),filter .6s ease;}
-
-/* ---------- Account gate (multi-equipo) ---------- */
-#accountGate{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;}
-#accountGate.hidden{display:none;}
-.ag-card{width:100%;max-width:380px;text-align:center;}
-.ag-card .brand-name{font-family:var(--font-display);font-size:26px;font-weight:700;margin-top:6px;}
-.ag-card .brand-tag{color:var(--text-dim);font-size:13px;margin-bottom:22px;}
-.ag-toggle{display:flex;gap:8px;margin-bottom:18px;}
-.ag-toggle button{flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text-dim);font-weight:500;font-size:13px;cursor:pointer;}
-.ag-toggle button.active{color:var(--text);border-color:var(--brass-dim);background:var(--panel-3);}
-.ag-error{color:var(--danger-soft);font-size:13px;margin-top:-6px;margin-bottom:12px;text-align:left;display:none;}
 .dial-wrap.spin #swordGroup{transform:translateY(-26px);filter:drop-shadow(0 0 14px rgba(230,196,120,0.85));}
 .dial-wrap.shake{animation:shake .5s ease;}
 @keyframes shake{
@@ -441,30 +430,6 @@ svg{display:block;}
 </head>
 <body>
 
-<!-- ============ ACCOUNT GATE (login multi-equipo) ============ -->
-<div id="accountGate">
-  <div class="ag-card">
-    <div class="brand-mark">🔑</div>
-    <div class="brand-name">Supreme Key</div>
-    <div class="brand-tag">Accede a tu vault desde cualquier equipo</div>
-    <div class="ag-toggle">
-      <button type="button" id="agTabLogin" class="active">Entrar</button>
-      <button type="button" id="agTabRegister">Crear cuenta</button>
-    </div>
-    <div class="gate-error" id="agError"></div>
-    <div class="field">
-      <label>Correo</label>
-      <input type="email" id="agEmail" placeholder="tu@empresa.com" autocomplete="email">
-    </div>
-    <div class="field">
-      <label>Contraseña de cuenta</label>
-      <input type="password" id="agPassword" placeholder="Mínimo 8 caracteres" autocomplete="current-password">
-    </div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;" id="agSubmit">Entrar</button>
-    <div class="gate-footnote" style="margin-top:14px;">Tu contraseña de cuenta solo te identifica en el servidor. El vault sigue cifrado de extremo a extremo: la clave maestra nunca sale de tu dispositivo.</div>
-  </div>
-</div>
-
 <!-- ============ GATE (Setup / Unlock) ============ -->
 <div id="gate">
   <div class="gate-card">
@@ -501,7 +466,7 @@ svg{display:block;}
         </g>
       </svg>
     </div>
-    <div class="brand-name">Supreme Key</div>
+    <div class="brand-name">AteraMedia<br>Passwords Manager</div>
     <div class="brand-tag">Gestor de credenciales y claves de trabajo</div>
 
     <!-- Setup form (first run) -->
@@ -526,13 +491,44 @@ svg{display:block;}
         </div>
       </div>
       <button class="btn btn-primary" style="width:100%;justify-content:center;" id="setupBtn">Crear vault</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px;" id="showImportGateBtn" type="button">¿Ya tienes un backup? Importar vault existente</button>
       <div class="gate-footnote">Los datos se cifran con AES-256 (PBKDF2) directamente en tu dispositivo antes de guardarse. Nadie más puede leerlos sin esta clave.</div>
+    </div>
+
+    <!-- Import form (restore backup on a new device) -->
+    <div class="gate-form hidden" id="importGateForm">
+      <h2>Importar vault desde archivo</h2>
+      <p class="sub">Restaura un backup (.skvault) exportado desde otro dispositivo. Necesitas la misma clave maestra con la que se creó.</p>
+      <div class="gate-error" id="importGateError"></div>
+      <div class="field" id="importGateFileField">
+        <label>Archivo de backup (.skvault)</label>
+        <input type="file" id="importGateFile" accept=".skvault,.json,.txt,application/json,text/plain,*/*">
+        <div class="hint">
+          En iPhone, si el archivo no se lee bien al elegirlo, usa
+          <button type="button" id="importGateManualToggle" class="icon-btn" style="display:inline;padding:0;color:var(--brass-soft);text-decoration:underline;font-size:12px;">pegar el contenido manualmente</button>.
+        </div>
+      </div>
+      <div class="field hidden" id="importGateManualField">
+        <label>Contenido del archivo .skvault</label>
+        <textarea id="importGateManualText" rows="5" placeholder="Abre el archivo .skvault en Archivos o Notas, selecciona todo el texto, cópialo y pégalo aquí." class="mono" style="font-size:11.5px;"></textarea>
+        <div class="hint">Volver a <button type="button" id="importGateFileToggle" class="icon-btn" style="display:inline;padding:0;color:var(--brass-soft);text-decoration:underline;font-size:12px;">elegir un archivo</button> en su lugar.</div>
+      </div>
+      <div class="field">
+        <label>Clave maestra de ese backup</label>
+        <div class="pw-input-wrap">
+          <input type="password" id="importGatePw" placeholder="••••••••" autocomplete="current-password">
+          <button class="pw-toggle" data-toggle="importGatePw" type="button"></button>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" id="importGateBtn">Restaurar e ingresar</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px;" id="backToSetupBtn" type="button">← Volver</button>
+      <div class="gate-footnote">Esto reemplaza cualquier dato local en este dispositivo por el contenido del backup.</div>
     </div>
 
     <!-- Unlock form (returning) -->
     <div class="gate-form hidden" id="unlockForm">
       <h2>Ingresa tu clave maestra</h2>
-      <p class="sub">Desbloquea tu Supreme Key para ver y gestionar tus credenciales.</p>
+      <p class="sub">Desbloquea AteraMedia Passwords Manager para ver y gestionar tus credenciales.</p>
       <div class="gate-error" id="unlockError">Clave incorrecta. Inténtalo nuevamente.</div>
       <div class="field">
         <label>Clave maestra</label>
@@ -542,6 +538,7 @@ svg{display:block;}
         </div>
       </div>
       <button class="btn btn-primary" style="width:100%;justify-content:center;" id="unlockBtn">Desbloquear</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px;" id="showImportGateBtn2" type="button">Restaurar desde un backup (.skvault)</button>
       <div class="gate-footnote">¿Perdiste tu clave? No es posible recuperarla ni restablecerla sin borrar el vault, ya que los datos están cifrados de extremo a extremo.</div>
     </div>
   </div>
@@ -554,8 +551,8 @@ svg{display:block;}
   <!-- Sidebar (desktop) -->
   <aside class="sidebar">
     <div class="side-brand">
-      <img class="mark" src="icons/icon-96.png" alt="Supreme Key" width="30" height="30" style="border-radius:7px;">
-      <span class="name">Supreme Key</span>
+      <img class="mark" src="icons/icon-96.png" alt="AteraMedia Passwords Manager" width="30" height="30" style="border-radius:7px;">
+      <span class="name">AteraMedia</span>
     </div>
     <nav class="nav" id="navList">
       <button class="nav-item active" data-view="dashboard">
@@ -593,8 +590,8 @@ svg{display:block;}
   <div class="drawer-overlay" id="drawerOverlay"></div>
   <aside class="drawer" id="drawer">
     <div class="side-brand">
-      <img class="mark" src="icons/icon-96.png" alt="Supreme Key" width="30" height="30" style="border-radius:7px;">
-      <span class="name">Supreme Key</span>
+      <img class="mark" src="icons/icon-96.png" alt="AteraMedia Passwords Manager" width="30" height="30" style="border-radius:7px;">
+      <span class="name">AteraMedia</span>
     </div>
     <nav class="nav" id="navListMobile"></nav>
     <div class="side-foot" style="margin-top:20px;">
@@ -613,7 +610,7 @@ svg{display:block;}
         </button>
         <div>
           <div class="page-title" id="pageTitle">Panel</div>
-          <div class="page-sub" id="pageSub">Resumen general de tu Supreme Key</div>
+          <div class="page-sub" id="pageSub">Resumen general de tu AteraMedia Passwords Manager</div>
         </div>
       </div>
       <div class="topbar-actions" id="topbarActions"></div>
@@ -732,6 +729,38 @@ svg{display:block;}
   </div>
 </div>
 
+<!-- ============ MODAL: import & merge ============ -->
+<div class="modal-overlay" id="importMergeModalOverlay">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-head">
+      <h3>Importar y fusionar</h3>
+      <button class="icon-btn" data-close="importMergeModalOverlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;color:var(--text-dim);line-height:1.5;margin-bottom:14px;">Archivo seleccionado: <strong id="importMergeFileName" style="color:var(--text);"></strong></p>
+      <div class="field hidden" id="importMergeManualField">
+        <label>Contenido del archivo .skvault</label>
+        <textarea id="importMergeManualText" rows="5" placeholder="Abre el archivo .skvault en Archivos o Notas, selecciona todo el texto, cópialo y pégalo aquí." class="mono" style="font-size:11.5px;"></textarea>
+      </div>
+      <div class="hint" style="margin-bottom:14px;">
+        ¿El archivo aparece ilegible (típico en iPhone)? <button type="button" id="importMergeManualToggle" class="icon-btn" style="display:inline;padding:0;color:var(--brass-soft);text-decoration:underline;font-size:12px;">pegar el contenido manualmente</button>.
+      </div>
+      <div class="field">
+        <label>Clave maestra de ese backup</label>
+        <div class="pw-input-wrap">
+          <input type="password" id="importMergePw" placeholder="••••••••" autocomplete="current-password">
+          <button class="pw-toggle" data-toggle="importMergePw" type="button"></button>
+        </div>
+      </div>
+      <div class="gate-error" id="importMergeError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="importMergeModalOverlay">Cancelar</button>
+      <button class="btn btn-primary" id="importMergeConfirmBtn">Fusionar datos</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg><span id="toastMsg"></span></div>
 
 <script>
@@ -741,85 +770,19 @@ svg{display:block;}
 /* ============================================================
    STORAGE + CRYPTO HELPERS
 ============================================================ */
-const META_KEY = 'meta';
-const DATA_KEY = 'data';
+const META_KEY = 'vault-meta';
+const DATA_KEY = 'vault-data';
 
 let vaultKey = null;      // derived key (word array) used for AES
 let vault = null;         // decrypted { credentials:[], groups:[] }
+let currentMeta = null;   // meta del vault en memoria (salt + verifier) para exportar sin re-leer storage
 let autoLockMinutes = 10;
 let autoLockTimer = null;
 let clipboardClearTimer = null;
-let accountEmail = null;  // cuenta autenticada en el servidor (NO la clave maestra)
-
-/* ---- STORAGE ADAPTER ----
-   Reemplaza el window.storage roto por una implementacion que:
-   (a) funciona en local si el servidor no responde (fallback a localStorage), y
-   (b) sincroniza el vault cifrado contra el backend /api/vault/*.
-   El servidor solo guarda ciphertext: zero-knowledge.
-   v2: el get no pierde datos si el server responde null pero hay localStorage,
-   y ambos loguean en consola para diagnosticar (F12 -> Console). */
-window.storage = {
-  async get(key){
-    try{
-      const resp = await fetch('/api/vault/' + key, { credentials:'include' });
-      console.log('[storage] GET', key, '->', resp.status);
-      if(resp.ok){
-        const j = await resp.json();
-        const local = localStorage.getItem(key);
-        // Si el server esta vacio pero hay copia local, la usamos y re-sincronizamos.
-        if((j.value === null || j.value === undefined) && local){
-          console.log('[storage] server vacio, uso localStorage y re-sync');
-          this.set(key, local);
-          return local;
-        }
-        return j.value;            // string o null
-      }
-      console.warn('[storage] GET', key, 'no ok:', resp.status);
-    }catch(e){ console.warn('[storage] GET fallo (server caido?)', e); }
-    const local = localStorage.getItem(key);
-    if(local) console.log('[storage] fallback localStorage', key);
-    return local;   // fallback offline
-  },
-  async set(key, value){
-    // Siempre cacheamos en localStorage: si la cookie de sesion se pierde al
-    // recargar, el GET cae a localStorage y el vault sobrevive (luego re-sync).
-    try{ localStorage.setItem(key, value); }catch(e){}
-    try{
-      const resp = await fetch('/api/vault/' + key, {
-        method:'PUT', credentials:'include',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ value: value })
-      });
-      console.log('[storage] PUT', key, '->', resp.status);
-      if(resp.ok) return;
-      console.warn('[storage] PUT', key, 'no ok:', resp.status);
-    }catch(e){ console.warn('[storage] PUT fallo (server caido?)', e); }
-  }
-};
-
-const SK_API = {
-  async register(email, password){
-    const r = await fetch('/api/register', { method:'POST', credentials:'include',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) });
-    return r.json();
-  },
-  async login(email, password){
-    const r = await fetch('/api/login', { method:'POST', credentials:'include',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) });
-    return r.json();
-  },
-  async me(){
-    try{ const r = await fetch('/api/me', { credentials:'include' }); if(r.ok) return (await r.json()).email; }catch(e){}
-    return null;
-  },
-  async logout(){
-    try{ await fetch('/api/logout', { method:'POST', credentials:'include' }); }catch(e){}
-  }
-};
 
 function deriveKey(password, saltHex){
   const salt = CryptoJS.enc.Hex.parse(saltHex);
-  return CryptoJS.PBKDF2(password, salt, { keySize: 256/32, iterations: 600000 });
+  return CryptoJS.PBKDF2(password, salt, { keySize: 256/32, iterations: 120000 });
 }
 function verifierOf(keyWordArray){
   return CryptoJS.SHA256(keyWordArray.toString()).toString();
@@ -838,14 +801,69 @@ function decryptVault(payload, keyWordArray){
   return JSON.parse(text);
 }
 
+/* ============================================================
+   BASE DE DATOS LOCAL (IndexedDB)
+   Reemplaza cualquier dependencia de entornos externos: esto es una
+   base de datos real del navegador, funciona igual en GitHub Pages,
+   en un servidor local o abriendo el archivo directamente, y
+   persiste entre sesiones mientras no se borren los datos del sitio.
+============================================================ */
+const DB_NAME = 'supreme-key-db';
+const DB_VERSION = 1;
+const STORE_NAME = 'kv';
+let _dbPromise = null;
+let _memoryFallback = {}; // solo se usa si IndexedDB no está disponible en absoluto
+
+function openDB(){
+  if(_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve, reject)=>{
+    if(!('indexedDB' in window)){ reject(new Error('IndexedDB no disponible')); return; }
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e)=>{
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains(STORE_NAME)){
+        db.createObjectStore(STORE_NAME, { keyPath:'key' });
+      }
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+  return _dbPromise;
+}
+
 async function storageGet(key){
   try{
-    const r = await window.storage.get(key, false);
-    return r ? r.value : null;
-  }catch(e){ return null; }
+    const db = await openDB();
+    return await new Promise((resolve, reject)=>{
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).get(key);
+      req.onsuccess = ()=> resolve(req.result ? req.result.value : null);
+      req.onerror = ()=> reject(req.error);
+    });
+  }catch(e){
+    // Fallback si IndexedDB está bloqueada (ej. navegación privada en algunos navegadores)
+    try{
+      const ls = localStorage.getItem('sk_'+key);
+      return ls !== null ? ls : (_memoryFallback[key] ?? null);
+    }catch(e2){
+      return _memoryFallback[key] ?? null;
+    }
+  }
 }
+
 async function storageSet(key, value){
-  try{ await window.storage.set(key, value, false); }catch(e){ console.error('storage set failed', e); }
+  try{
+    const db = await openDB();
+    await new Promise((resolve, reject)=>{
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put({ key, value });
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = ()=> reject(tx.error);
+    });
+  }catch(e){
+    console.error('No se pudo guardar en IndexedDB, usando respaldo:', e);
+    try{ localStorage.setItem('sk_'+key, value); }catch(e2){ _memoryFallback[key] = value; }
+  }
 }
 
 let saveTimer = null;
@@ -857,6 +875,16 @@ function persistVault(){
     await storageSet(DATA_KEY, payload);
   }, 250);
 }
+// Guardado inmediato (sin debounce) para no perder datos si se cierra la pestaña justo después de editar.
+async function flushVault(){
+  if(!vault || !vaultKey) return;
+  clearTimeout(saveTimer);
+  const payload = encryptVault(vault, vaultKey);
+  await storageSet(DATA_KEY, payload);
+}
+// Fuerza el guardado antes de que la página se oculte o se cierre.
+window.addEventListener('pagehide', ()=>{ flushVault(); });
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushVault(); });
 
 /* ============================================================
    GATE: setup / unlock
@@ -912,6 +940,7 @@ function eyeSVG(open){
 }
 
 async function initGate(){
+  document.getElementById('importGateForm').classList.add('hidden');
   const metaRaw = await storageGet(META_KEY);
   if(metaRaw){
     document.getElementById('unlockForm').classList.remove('hidden');
@@ -937,6 +966,7 @@ document.getElementById('setupBtn').addEventListener('click', async ()=>{
 
   vaultKey = key;
   vault = { credentials: [], groups: DEFAULT_GROUPS.slice() };
+  currentMeta = { salt, verifier, createdAt: Date.now() };
   persistVault();
   playUnlockAnim(()=> enterApp());
 });
@@ -967,6 +997,7 @@ async function unlockAttempt(){
     vault = { credentials: [], groups: DEFAULT_GROUPS.slice() };
   }
   if(!vault.groups || !vault.groups.length) vault.groups = DEFAULT_GROUPS.slice();
+  currentMeta = meta;
   playUnlockAnim(()=> enterApp());
 }
 
@@ -975,6 +1006,113 @@ function playUnlockAnim(cb){
   dw.classList.add('spin');
   setTimeout(cb, 480);
 }
+
+/* ---------- Lectura robusta de backups (compatible con iOS Safari) ---------- */
+function readFileAsText(file){
+  // Se usa FileReader en vez de file.text(): es la API más compatible entre
+  // navegadores/versiones, incluyendo casos donde el archivo llega vía
+  // AirDrop/Mail/iCloud en iPhone y el proveedor de archivos entrega el
+  // contenido de forma perezosa.
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(String(reader.result || ''));
+    reader.onerror = ()=> reject(reader.error || new Error('No se pudo leer el archivo seleccionado.'));
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+function sanitizeBackupText(raw){
+  let text = String(raw || '').replace(/^\uFEFF/, '').trim();
+  if(text && text[0] !== '{'){
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if(start !== -1 && end !== -1 && end > start) text = text.slice(start, end + 1);
+  }
+  return text;
+}
+function parseBackupPayload(rawText){
+  const text = sanitizeBackupText(rawText);
+  if(!text) throw new Error('El contenido está vacío.');
+  let payload;
+  try{ payload = JSON.parse(text); }
+  catch(e){ throw new Error('El texto no tiene formato JSON válido.'); }
+  if(!payload || payload.app !== 'supreme-key' || !payload.meta || !payload.data){
+    throw new Error('No es un backup de AteraMedia Passwords Manager reconocible.');
+  }
+  return payload;
+}
+
+/* ---------- Importar backup desde el gate (dispositivo nuevo / restaurar) ---------- */
+let _gateReturnTo = 'setup';
+function showImportGate(returnTo){
+  _gateReturnTo = returnTo;
+  document.getElementById('setupForm').classList.add('hidden');
+  document.getElementById('unlockForm').classList.add('hidden');
+  document.getElementById('importGateForm').classList.remove('hidden');
+  document.getElementById('importGateError').style.display = 'none';
+}
+document.getElementById('showImportGateBtn').addEventListener('click', ()=> showImportGate('setup'));
+document.getElementById('showImportGateBtn2').addEventListener('click', ()=> showImportGate('unlock'));
+document.getElementById('backToSetupBtn').addEventListener('click', ()=>{
+  document.getElementById('importGateForm').classList.add('hidden');
+  document.getElementById(_gateReturnTo === 'unlock' ? 'unlockForm' : 'setupForm').classList.remove('hidden');
+});
+document.getElementById('importGateManualToggle').addEventListener('click', ()=>{
+  document.getElementById('importGateFileField').classList.add('hidden');
+  document.getElementById('importGateManualField').classList.remove('hidden');
+});
+document.getElementById('importGateFileToggle').addEventListener('click', ()=>{
+  document.getElementById('importGateManualField').classList.add('hidden');
+  document.getElementById('importGateFileField').classList.remove('hidden');
+});
+
+document.getElementById('importGateBtn').addEventListener('click', async ()=>{
+  const errEl = document.getElementById('importGateError');
+  errEl.style.display = 'none';
+  const fileInput = document.getElementById('importGateFile');
+  const manualText = document.getElementById('importGateManualText').value;
+  const pw = document.getElementById('importGatePw').value;
+  const file = fileInput.files[0];
+
+  let rawText;
+  try{
+    if(manualText.trim()){
+      rawText = manualText;
+    } else if(file){
+      rawText = await readFileAsText(file);
+    } else {
+      errEl.textContent = 'Selecciona un archivo .skvault o pega su contenido manualmente.'; errEl.style.display='block'; return;
+    }
+  }catch(e){
+    errEl.textContent = 'No se pudo leer el archivo (' + (e.message || 'error desconocido') + '). Prueba con "pegar el contenido manualmente".';
+    errEl.style.display='block'; return;
+  }
+
+  let payload;
+  try{
+    payload = parseBackupPayload(rawText);
+  }catch(e){
+    errEl.textContent = e.message + ' Si el archivo se ve ilegible, ábrelo en la app Archivos o Notas, copia todo el texto y pégalo con "pegar el contenido manualmente".';
+    errEl.style.display='block'; return;
+  }
+  const key = deriveKey(pw, payload.meta.salt);
+  if(verifierOf(key) !== payload.meta.verifier){
+    errEl.textContent = 'La clave maestra no coincide con este backup.'; errEl.style.display='block'; return;
+  }
+  let importedVault;
+  try{
+    importedVault = decryptVault(payload.data, key);
+  }catch(e){
+    errEl.textContent = 'No se pudo leer el contenido del backup.'; errEl.style.display='block'; return;
+  }
+  await storageSet(META_KEY, JSON.stringify(payload.meta));
+  await storageSet(DATA_KEY, payload.data);
+  vaultKey = key;
+  vault = importedVault;
+  currentMeta = payload.meta;
+  if(!vault.groups || !vault.groups.length) vault.groups = DEFAULT_GROUPS.slice();
+  document.getElementById('importGateForm').classList.add('hidden');
+  playUnlockAnim(()=>{ enterApp(); showToast('Vault restaurado desde el backup'); });
+});
 
 function enterApp(){
   document.getElementById('gate').style.display = 'none';
@@ -997,16 +1135,6 @@ function lockVault(){
 document.getElementById('lockBtn').addEventListener('click', lockVault);
 document.getElementById('lockBtnMobile').addEventListener('click', lockVault);
 
-// Logout de cuenta (cierra sesion en el servidor, mantiene el vault local cifrado)
-const logoutBtn = document.getElementById('logoutBtn');
-if(logoutBtn) logoutBtn.addEventListener('click', async ()=>{
-  await SK_API.logout();
-  accountEmail = null;
-  lockVault();
-  document.getElementById('accountGate').classList.remove('hidden');
-  wireAccountGate();
-});
-
 /* auto-lock (protección de datos) */
 ['mousemove','keydown','click','touchstart','scroll'].forEach(evt=>{
   document.addEventListener(evt, resetAutoLockTimer, { passive:true });
@@ -1027,7 +1155,7 @@ function updateAutolockNote(){
    NAVIGATION
 ============================================================ */
 const VIEWS = [
-  { id:'dashboard', label:'Panel', sub:'Resumen general de tu Supreme Key', icon:'grid' },
+  { id:'dashboard', label:'Panel', sub:'Resumen general de tu AteraMedia Passwords Manager', icon:'grid' },
   { id:'credentials', label:'Credenciales', sub:'Todas tus claves guardadas', icon:'key' },
   { id:'groups', label:'Grupos', sub:'Organiza credenciales por equipo o proyecto', icon:'users' },
   { id:'reports', label:'Informes', sub:'Exporta tus credenciales a PDF', icon:'doc' },
@@ -1214,8 +1342,8 @@ function credCardEl(cr){
   el.innerHTML = `
     <div class="cred-avatar">${escapeHTML(initials)}</div>
     <div class="cred-main">
-      <div class="cred-site">${escapeHTML(cr.site)} ${cr.url?`<a href="${escapeAttr(cr.url)}" target="_blank" rel="noopener" class="icon-btn" style="display:inline-flex;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>`:''}</div>
-      <div class="cred-user">${escapeHTML(cr.username || '—')}</div>
+      <div class="cred-site">${escapeHTML(cr.site)} ${(()=>{ const u=safeUrl(cr.url); return u?`<a href="${escapeAttr(u)}" target="_blank" rel="noopener noreferrer" class="icon-btn" style="display:inline-flex;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 0 0 1-2-2V8a2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg></a>`:''; })()}</div>
+      <div class="cred-user">${escapeHTML(cr.username || '—')} ${cr.username?`<button class="icon-btn" data-action="copy-user" title="Copiar usuario"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`:''}</div>
     </div>
     <div class="cred-pw-field">
       <span class="mono" data-pw-mask>••••••••••</span>
@@ -1238,6 +1366,10 @@ function credCardEl(cr){
   el.querySelector('[data-action="copy-pw"]').addEventListener('click', ()=>{
     copyToClipboard(cr.password);
     showToast('Contraseña copiada · se borrará del portapapeles en 20s');
+  });
+  el.querySelector('[data-action="copy-user"]')?.addEventListener('click', ()=>{
+    copyToClipboard(cr.username || '');
+    showToast('Usuario copiado · se borrará del portapapeles en 20s');
   });
   el.querySelector('[data-action="edit"]').addEventListener('click', ()=> openCredModal(cr));
   el.querySelector('[data-action="delete"]').addEventListener('click', ()=> {
@@ -1348,7 +1480,7 @@ function generatePDFReport(){
   doc.setFont('helvetica','bold');
   doc.setFontSize(18);
   doc.setTextColor(30,25,15);
-  doc.text('Supreme Key · Informe de credenciales', 40, 50);
+  doc.text('AteraMedia Passwords Manager · Informe de credenciales', 40, 50);
   doc.setFont('helvetica','normal');
   doc.setFontSize(10.5);
   doc.setTextColor(90,90,90);
@@ -1382,17 +1514,175 @@ function generatePDFReport(){
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150,150,150);
-    doc.text('Documento confidencial · generado por Supreme Key', 40, doc.internal.pageSize.height - 20);
+    doc.text('Documento confidencial · generado por AteraMedia Passwords Manager', 40, doc.internal.pageSize.height - 20);
     doc.text(String(i)+' / '+pageCount, doc.internal.pageSize.width - 60, doc.internal.pageSize.height - 20);
   }
 
-  doc.save(`supreme-key-credenciales-${now.toISOString().slice(0,10)}.pdf`);
+  doc.save(`ateramedia-credenciales-${now.toISOString().slice(0,10)}.pdf`);
   showToast('Informe PDF generado');
+}
+
+/* ---------- SINCRONIZAR: exportar / importar y fusionar ---------- */
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], { type: mime || 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 4000);
+}
+
+async function exportVaultFile(){
+  if(!vault || !vaultKey) return;
+  if(!currentMeta) currentMeta = JSON.parse(await storageGet(META_KEY));
+  if(!currentMeta || !currentMeta.salt || !currentMeta.verifier){
+    showToast('No se pudo exportar: falta la metadata del vault.'); return;
+  }
+  const freshData = encryptVault(vault, vaultKey); // estado más reciente en memoria, no depende del debounce de guardado
+  const payload = { app:'supreme-key', format:1, exportedAt: Date.now(), meta: currentMeta, data: freshData };
+  const filename = `ateramedia-backup-${new Date().toISOString().slice(0,10)}.skvault`;
+  downloadFile(filename, JSON.stringify(payload), 'application/json');
+  showToast('Backup exportado');
+}
+
+let _pendingImportFile = null;
+function openImportMergeModal(file){
+  _pendingImportFile = file || null;
+  document.getElementById('importMergeFileName').textContent = file ? file.name : '(ninguno · pegando contenido manualmente)';
+  document.getElementById('importMergePw').value = '';
+  document.getElementById('importMergeManualText').value = '';
+  document.getElementById('importMergeManualField').classList.toggle('hidden', !!file);
+  document.getElementById('importMergeError').style.display = 'none';
+  document.getElementById('importMergeModalOverlay').classList.add('show');
+}
+document.getElementById('importMergeManualToggle').addEventListener('click', ()=>{
+  document.getElementById('importMergeManualField').classList.toggle('hidden');
+});
+
+document.getElementById('importMergeConfirmBtn').addEventListener('click', async ()=>{
+  const errEl = document.getElementById('importMergeError');
+  errEl.style.display = 'none';
+  const pw = document.getElementById('importMergePw').value;
+  const manualText = document.getElementById('importMergeManualText').value;
+
+  let rawText;
+  try{
+    if(manualText.trim()){
+      rawText = manualText;
+    } else if(_pendingImportFile){
+      rawText = await readFileAsText(_pendingImportFile);
+    } else {
+      return;
+    }
+  }catch(e){
+    errEl.textContent = 'No se pudo leer el archivo (' + (e.message || 'error desconocido') + '). Prueba con "pegar el contenido manualmente".';
+    errEl.style.display='block'; return;
+  }
+
+  let payload;
+  try{
+    payload = parseBackupPayload(rawText);
+  }catch(e){
+    errEl.textContent = e.message + ' Si el archivo se ve ilegible, ábrelo en la app Archivos o Notas, copia todo el texto y pégalo con "pegar el contenido manualmente".';
+    errEl.style.display='block'; return;
+  }
+  const key = deriveKey(pw, payload.meta.salt);
+  if(verifierOf(key) !== payload.meta.verifier){
+    errEl.textContent = 'La clave maestra no coincide con este backup.'; errEl.style.display='block'; return;
+  }
+  let importedVault;
+  try{
+    importedVault = decryptVault(payload.data, key);
+  }catch(e){
+    errEl.textContent = 'No se pudo leer el contenido del backup.'; errEl.style.display='block'; return;
+  }
+  const summary = mergeVaultData(importedVault);
+  persistVault();
+  closeModal('importMergeModalOverlay');
+  _pendingImportFile = null;
+  renderView(currentView);
+  showToast(`Fusión completa · ${summary.addedCreds} nuevas, ${summary.updatedCreds} actualizadas, ${summary.addedGroups} grupos añadidos`);
+});
+
+function mergeVaultData(imported){
+  let addedGroups = 0, addedCreds = 0, updatedCreds = 0;
+  const existingGroupIds = new Set(vault.groups.map(g=>g.id));
+  (imported.groups || []).forEach(g=>{
+    if(!existingGroupIds.has(g.id)){
+      vault.groups.push(g);
+      existingGroupIds.add(g.id);
+      addedGroups++;
+    }
+  });
+  const byId = {};
+  vault.credentials.forEach(c=>{ byId[c.id] = c; });
+  (imported.credentials || []).forEach(c=>{
+    if(!existingGroupIds.has(c.groupId)) c.groupId = 'g_general';
+    const local = byId[c.id];
+    if(!local){
+      vault.credentials.push(c);
+      byId[c.id] = c;
+      addedCreds++;
+    } else if((c.updatedAt || 0) > (local.updatedAt || 0)){
+      Object.assign(local, c);
+      updatedCreds++;
+    }
+  });
+  return { addedGroups, addedCreds, updatedCreds };
 }
 
 /* ---------- SETTINGS ---------- */
 function renderSettings(c){
   c.innerHTML = `
+    <div class="settings-section">
+      <h3>Sincronizar entre dispositivos (nube)</h3>
+      <p class="hint" style="margin-bottom:14px;line-height:1.6;">Tu vault se guarda cifrado en el servidor: tu clave maestra nunca sale de este dispositivo. Inicia sesión para respaldar y recuperar tus credenciales en cualquier otro dispositivo.</p>
+      <div id="cloudAccountArea">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="field" style="margin-bottom:0;flex:1;min-width:200px;">
+            <label>Correo</label>
+            <input type="email" id="cloudEmail" placeholder="tu@correo.com" autocomplete="username">
+          </div>
+          <div class="field" style="margin-bottom:0;flex:1;min-width:200px;">
+            <label>Contraseña de cuenta (nube)</label>
+            <div class="pw-input-wrap">
+              <input type="password" id="cloudPw" placeholder="Contraseña de tu cuenta en la nube" autocomplete="current-password">
+              <button class="pw-toggle" data-toggle="cloudPw" type="button"></button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+          <button class="btn btn-primary btn-sm" id="cloudLoginBtn">Iniciar sesión</button>
+          <button class="btn btn-sm" id="cloudRegBtn">Crear cuenta</button>
+          <span id="cloudStatus" style="font-size:12.5px;color:var(--text-dim);align-self:center;"></span>
+        </div>
+      </div>
+      <div id="cloudSyncArea" class="hidden" style="margin-top:6px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary btn-sm" id="cloudPushBtn">Subir vault a la nube ↑</button>
+          <button class="btn btn-sm" id="cloudPullBtn">Bajar vault de la nube ↓</button>
+          <button class="btn btn-ghost btn-sm" id="cloudLogoutBtn">Cerrar sesión</button>
+          <span id="cloudSyncStatus" style="font-size:12.5px;color:var(--text-dim);"></span>
+        </div>
+        <p class="hint" style="margin-top:10px;">"Subir" sobrescribe la copia de la nube con este dispositivo. "Bajar" trae la copia de la nube y la fusiona ( conserva lo más reciente por credencial).</p>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Respaldo manual (archivo .skvault)</h3>
+      <p class="hint" style="margin-bottom:14px;line-height:1.6;">Método alternativo sin servidor: exporta un backup cifrado y transfiérelo a tu otro dispositivo. Al importarlo se fusiona sin perder nada.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="exportVaultBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar backup (.skvault)
+        </button>
+        <button class="btn btn-sm" id="importMergeBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Importar y fusionar
+        </button>
+        <button class="btn btn-ghost btn-sm" id="importMergeManualBtn">Pegar contenido manualmente</button>
+        <input type="file" id="importMergeFile" accept=".skvault,.json,.txt,application/json,text/plain,*/*" class="hidden">
+      </div>
+    </div>
     <div class="settings-section">
       <h3>Bloqueo automático</h3>
       <p class="hint" style="margin-bottom:12px;">Protege tus datos bloqueando el vault tras un período de inactividad.</p>
@@ -1410,13 +1700,8 @@ function renderSettings(c){
       <button class="btn btn-primary btn-sm" id="changePwBtn">Actualizar clave maestra</button>
     </div>
     <div class="settings-section">
-      <h3>Sesión y equipos</h3>
-      <p class="hint" style="margin-bottom:12px;">Cerrar la sesión de cuenta en este dispositivo. El vault cifrado permanece en el servidor; solo dejas de estar autenticado aquí.</p>
-      <button class="btn btn-danger btn-sm" id="logoutBtn">Cerrar sesión de cuenta</button>
-    </div>
-    <div class="settings-section">
       <h3>Acerca de la seguridad</h3>
-      <p class="hint" style="line-height:1.6;">Todos los datos se cifran localmente con AES-256 usando una clave derivada de tu clave maestra mediante PBKDF2 (600.000 iteraciones) antes de guardarse. La clave maestra nunca se almacena ni se transmite.</p>
+      <p class="hint" style="line-height:1.6;">Todos los datos se cifran localmente con AES-256 usando una clave derivada de tu clave maestra mediante PBKDF2 (120.000 iteraciones) antes de guardarse. La clave maestra nunca se almacena ni se transmite.</p>
     </div>
   `;
   document.querySelectorAll('#autolockRow .radio-pill').forEach(btn=>{
@@ -1426,6 +1711,14 @@ function renderSettings(c){
       resetAutoLockTimer();
       renderSettings(document.getElementById('content'));
     });
+  });
+  document.getElementById('exportVaultBtn').addEventListener('click', exportVaultFile);
+  document.getElementById('importMergeBtn').addEventListener('click', ()=> document.getElementById('importMergeFile').click());
+  document.getElementById('importMergeManualBtn').addEventListener('click', ()=> openImportMergeModal(null));
+  document.getElementById('importMergeFile').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(file) openImportMergeModal(file);
+    e.target.value = '';
   });
   document.getElementById('changePwBtn').addEventListener('click', async ()=>{
     const errEl = document.getElementById('changePwError');
@@ -1443,12 +1736,21 @@ function renderSettings(c){
     if(n1 !== n2){ errEl.textContent='Las nuevas claves no coinciden.'; errEl.style.display='block'; return; }
     const newSalt = CryptoJS.lib.WordArray.random(16).toString();
     const newKey = deriveKey(n1, newSalt);
-    await storageSet(META_KEY, JSON.stringify({ salt:newSalt, verifier:verifierOf(newKey), createdAt: meta.createdAt, updatedAt: Date.now() }));
+    const newMeta = { salt:newSalt, verifier:verifierOf(newKey), createdAt: meta.createdAt, updatedAt: Date.now() };
+    await storageSet(META_KEY, JSON.stringify(newMeta));
     vaultKey = newKey;
+    currentMeta = newMeta;
     persistVault();
+    // Si hay sesión en la nube, también re-cifra y sube con la nueva clave.
+    if(cloudSessionKey){
+      cloudSessionKey = newKey; cloudSessionSalt = newSalt; cloudSessionVerifier = verifierOf(newKey);
+      const vaultEnc = encryptVault(vault, newKey);
+      await apiJSON('POST', '/api/keychange', { salt:newSalt, verifier:verifierOf(newKey), vault:vaultEnc });
+    }
     showToast('Clave maestra actualizada');
     document.getElementById('curPw').value=''; document.getElementById('newPw1').value=''; document.getElementById('newPw2').value='';
   });
+  wireCloudUI();
 }
 
 /* ============================================================
@@ -1602,60 +1904,162 @@ function escapeHTML(str){
   return String(str||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function escapeAttr(str){ return escapeHTML(str); }
+// Solo permite enlazar URLs seguras; bloquea javascript:, data:, etc. (evita XSS almacenado)
+function safeUrl(u){
+  const s = String(u||'').trim();
+  if(!s) return '';
+  if(/^(https?:|mailto:)/i.test(s)) return s;
+  if(/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s)) return 'https://'+s; // dominio suelto → https
+  return '';
+}
+
+/* ---------- SINCRONIZACIÓN EN LA NUBE (zero-knowledge) ----------
+   Se integra con el backend "Supreme Key" existente (server.js):
+     • Cuenta: email + PASSWORD DE CUENTA (distinto de la clave maestra del vault).
+     • Vault cifrado en dos partes: meta = JSON {salt,verifier} del vault,
+       data = blob "iv:ct" cifrado con la CLAVE MAESTRA del vault.
+   El servidor solo guarda meta+data cifrados; la clave maestra NUNCA viaja.
+   El IndexedDB local queda como caché offline. */
+const CLOUD_STATE = { loggedIn: false, email: null };
+// Material del VAULT (derivado de la clave maestra local), para cifrar/descifrar el blob.
+let cloudVaultKey = null, cloudVaultSalt = null, cloudVaultVerifier = null;
+
+async function apiJSON(method, path, body){
+  const res = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'same-origin'
+  });
+  let data = null;
+  try { data = await res.json(); } catch(_){}
+  return { ok: res.ok, status: res.status, data };
+}
+
+function wireCloudUI(){
+  const statusEl = document.getElementById('cloudStatus');
+  const syncStatusEl = document.getElementById('cloudSyncStatus');
+  const acctArea = document.getElementById('cloudAccountArea');
+  const syncArea = document.getElementById('cloudSyncArea');
+
+  function showLoggedIn(email){
+    CLOUD_STATE.loggedIn = true; CLOUD_STATE.email = email;
+    acctArea.classList.add('hidden');
+    syncArea.classList.remove('hidden');
+  }
+  function showLoggedOut(){
+    CLOUD_STATE.loggedIn = false; CLOUD_STATE.email = null;
+    acctArea.classList.remove('hidden');
+    syncArea.classList.add('hidden');
+  }
+
+  // Prepara el material del vault con la clave maestra LOCAL (vaultKey ya derivada).
+  function prepareVaultMaterial(){
+    if(cloudVaultKey) return true;
+    if(!vaultKey) return false;
+    cloudVaultKey = vaultKey;
+    cloudVaultSalt = (currentMeta && currentMeta.salt) || CryptoJS.lib.WordArray.random(16).toString();
+    cloudVaultVerifier = verifierOf(vaultKey);
+    return true;
+  }
+
+  document.getElementById('cloudRegBtn').addEventListener('click', async ()=>{
+    const email = document.getElementById('cloudEmail').value.trim();
+    const accountPw = document.getElementById('cloudPw').value;
+    if(accountPw.length < 8){ statusEl.style.color='var(--danger-soft)'; statusEl.textContent='La contraseña de cuenta debe tener al menos 8 caracteres.'; return; }
+    if(!prepareVaultMaterial()){ statusEl.style.color='var(--danger-soft)'; statusEl.textContent='Crea primero tu clave maestra del vault (en la pantalla inicial).'; return; }
+    statusEl.style.color = 'var(--text-dim)'; statusEl.textContent = 'Creando cuenta…';
+    const r = await apiJSON('POST', '/api/register', { email, password: accountPw });
+    if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'No se pudo crear la cuenta.'; return; }
+    showLoggedIn(email);
+    syncStatusEl.textContent = 'Cuenta creada. Subiendo vault…';
+    await cloudPush();
+    showToast('Cuenta creada en la nube');
+  });
+
+  document.getElementById('cloudLoginBtn').addEventListener('click', async ()=>{
+    const email = document.getElementById('cloudEmail').value.trim();
+    const accountPw = document.getElementById('cloudPw').value;
+    statusEl.style.color = 'var(--text-dim)';
+    statusEl.textContent = 'Iniciando sesión…';
+    const r = await apiJSON('POST', '/api/login', { email, password: accountPw });
+    if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'Credenciales incorrectas.'; return; }
+    showLoggedIn(email);
+    syncStatusEl.textContent = 'Sesión iniciada.';
+    showToast('Sesión iniciada en la nube');
+    cloudPull(true);
+  });
+
+  document.getElementById('cloudPushBtn').addEventListener('click', ()=> cloudPush());
+  document.getElementById('cloudPullBtn').addEventListener('click', ()=> cloudPull(false));
+  document.getElementById('cloudLogoutBtn').addEventListener('click', async ()=>{
+    await apiJSON('POST', '/api/logout');
+    cloudVaultKey = null; cloudVaultSalt = null; cloudVaultVerifier = null;
+    showLoggedOut();
+    statusEl.textContent = '';
+    showToast('Sesión de la nube cerrada');
+  });
+}
+
+async function cloudPush(){
+  const syncStatusEl = document.getElementById('cloudSyncStatus');
+  if(!CLOUD_STATE.loggedIn){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
+  if(!cloudVaultKey && !prepareVaultMaterial()){ syncStatusEl.textContent = 'Crea tu clave maestra del vault primero.'; return; }
+  syncStatusEl.style.color = 'var(--text-dim)'; syncStatusEl.textContent = 'Subiendo…';
+  // meta: información de la clave del vault (no la clave en sí). data: blob cifrado.
+  const meta = JSON.stringify({ salt: cloudVaultSalt, verifier: cloudVaultVerifier, updatedAt: Date.now() });
+  const data = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, cloudVaultKey);
+  const r1 = await apiJSON('PUT', '/api/vault/meta', { value: meta });
+  if(!r1.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r1.data && r1.data.error) || 'Error al subir.'; return; }
+  const r2 = await apiJSON('PUT', '/api/vault/data', { value: data });
+  if(!r2.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (r2.data && r2.data.error) || 'Error al subir.'; return; }
+  syncStatusEl.style.color = 'var(--success)'; syncStatusEl.textContent = 'Vault subido a la nube ✓';
+  showToast('Vault subido a la nube');
+}
+
+async function cloudPull(silent){
+  const syncStatusEl = document.getElementById('cloudSyncStatus');
+  if(!CLOUD_STATE.loggedIn){ syncStatusEl.textContent = 'Inicia sesión primero.'; return; }
+  if(!silent){ syncStatusEl.style.color = 'var(--text-dim)'; syncStatusEl.textContent = 'Bajando…'; }
+  const rm = await apiJSON('GET', '/api/vault/meta');
+  const rd = await apiJSON('GET', '/api/vault/data');
+  if(!rm.ok || !rd.ok){ syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = (rm.data && rm.data.error) || 'Error al bajar.'; return; }
+  const remoteData = rd.data && rd.data.value;
+  if(!remoteData){ if(!silent){ syncStatusEl.textContent = 'La nube está vacía.'; } return; }
+  if(!cloudVaultKey && !prepareVaultMaterial()){
+    syncStatusEl.style.color = 'var(--danger-soft)'; syncStatusEl.textContent = 'Necesitas tu clave maestra del vault para descifrar.'; return;
+  }
+  let imported;
+  try { imported = decryptVault(remoteData, cloudVaultKey); }
+  catch(e){ syncStatusEl.style.color='var(--danger-soft)'; syncStatusEl.textContent='No se pudo descifrar (clave maestra distinta).'; return; }
+  const summary = mergeVaultData(imported);
+  persistVault();
+  renderView(currentView);
+  syncStatusEl.style.color = 'var(--success)';
+  syncStatusEl.textContent = `Nube bajada ✓ (${summary.addedCreds} nuevas, ${summary.updatedCreds} actualizadas)`;
+  if(!silent) showToast('Vault de la nube sincronizado');
+}
 
 /* ============================================================
    INIT
 ============================================================ */
-// 1) Primero: asegurar cuenta (multi-equipo). Si no hay sesion, mostramos account gate.
-(async function boot(){
-  accountEmail = await SK_API.me();
-  if(accountEmail){
-    document.getElementById('accountGate').classList.add('hidden');
-    updateAutolockNote();
-    initGate();
-  } else {
-    document.getElementById('accountGate').classList.remove('hidden');
-    wireAccountGate();
-  }
-})();
-
-function wireAccountGate(){
-  const tabLogin = document.getElementById('agTabLogin');
-  const tabReg   = document.getElementById('agTabRegister');
-  const submit   = document.getElementById('agSubmit');
-  const errEl    = document.getElementById('agError');
-  let mode = 'login';
-  const setMode = (m)=>{
-    mode = m;
-    tabLogin.classList.toggle('active', m==='login');
-    tabReg.classList.toggle('active', m==='register');
-    submit.textContent = m==='login' ? 'Entrar' : 'Crear cuenta';
-    errEl.style.display = 'none';
-  };
-  tabLogin.addEventListener('click', ()=> setMode('login'));
-  tabReg.addEventListener('click', ()=> setMode('register'));
-  submit.addEventListener('click', async ()=>{
-    errEl.style.display = 'none';
-    const email = document.getElementById('agEmail').value.trim();
-    const password = document.getElementById('agPassword').value;
-    if(!email || password.length < 8){ errEl.textContent='Completa correo y contrasena (min 8).'; errEl.style.display='block'; return; }
-    submit.disabled = true; submit.textContent = '...';
-    const res = mode==='login' ? await SK_API.login(email, password)
-                               : await SK_API.register(email, password);
-    submit.disabled = false; submit.textContent = mode==='login' ? 'Entrar' : 'Crear cuenta';
-    if(res.error){ errEl.textContent = res.error; errEl.style.display='block'; return; }
-    accountEmail = email;
-    document.getElementById('accountGate').classList.add('hidden');
-    updateAutolockNote();
-    initGate();
-  });
-}
+initGate();
+updateAutolockNote();
 
 /* PWA: registra el service worker para uso offline e instalación en el dispositivo.
    Se omite si la app se abre directamente desde el disco (file://) o si el navegador no lo soporta. */
 if('serviceWorker' in navigator && location.protocol !== 'file:'){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+  // Si se activa una versión nueva del service worker, recarga una sola vez
+  // para que los cambios se apliquen de inmediato (evita quedarse con una
+  // copia vieja cacheada).
+  let _swRefreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(_swRefreshed) return;
+    _swRefreshed = true;
+    window.location.reload();
   });
 }
 })();

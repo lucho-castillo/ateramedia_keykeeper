@@ -1,7 +1,7 @@
-// Supreme Key — Service Worker
+// AteraMedia Passwords Manager — Service Worker
 // Cachea toda la app (app shell + librerías + fuentes) para que funcione 100% offline
 // una vez instalada/visitada por primera vez.
-const CACHE_NAME = 'supreme-key-cache-v1';
+const CACHE_NAME = 'supreme-key-cache-v8';
 const ASSETS = [
   './',
   './index.html',
@@ -42,11 +42,8 @@ self.addEventListener('activate', (event) => {
 });
 
 // Cache-first: sirve desde caché de inmediato; si hay red, actualiza la caché en segundo plano.
-// IMPORTANTE: nunca cachear rutas /api (datos del vault) ni el propio SW.
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  if(url.pathname.startsWith('/api/')) return;            // deja pasar al network (no cachear)
-  if(event.request.method !== 'GET') return;
+  if (event.request.method !== 'GET') return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
