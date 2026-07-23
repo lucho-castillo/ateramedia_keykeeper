@@ -1,10 +1,10 @@
 # Dependencias de Node (se instalan con npm install)
-server/node_modules/
+node_modules/
 
 # Base de datos local (contiene vault cifrado + metadatos, NO subir a GitHub)
-server/supreme_key.db
-server/supreme_key.db.*
-server/*.verify-bak
+supreme_key.db
+supreme_key.db.*
+*.verify-bak
 
 # Logs y temporales
 *.log
