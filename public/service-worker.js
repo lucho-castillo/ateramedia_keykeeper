@@ -41,8 +41,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Cache-first: sirve desde caché de inmediato; si hay red, actualiza la caché en segundo plano.
+// Cache-first para assets estaticos; NUNCA cachear las rutas de API (/api/),
+// para no devolver respuestas de red viejas (sobre todo en iOS/PWA instalada).
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) {
+    // Siempre ir a la red; no cachear credenciales ni vault.
+    event.respondWith(fetch(event.request));
+    return;
+  }
   if (event.request.method !== 'GET') return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
