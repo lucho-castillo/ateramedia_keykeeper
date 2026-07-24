@@ -211,11 +211,21 @@ app.post('/api/login', loginLimiter, (req, res) => {
     vaultSalt = newSalt();
     db.prepare('UPDATE users SET vault_salt = ? WHERE id = ?').run(vaultSalt, user.id);
   }
+  // Lazy-promote: si la BD no tiene NINGUN admin (p.ej. cuenta creada antes de
+  // Fase2), el primer usuario que inicia sesion se vuelve admin del equipo.
+  let role = user.role;
+  if (role !== 'admin') {
+    const anyAdmin = db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+    if (!anyAdmin) {
+      role = 'admin';
+      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+    }
+  }
   const token = newToken();
   db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)')
     .run(token, user.id, Date.now() + SESSION_TTL * 1000);
   setSessionCookie(res, token);
-  res.json({ ok: true, email: user.email, vaultSalt, role: user.role });
+  res.json({ ok: true, email: user.email, vaultSalt, role });
 });
 
 app.post('/api/logout', requireAuth, (req, res) => {
@@ -228,7 +238,16 @@ app.post('/api/logout', requireAuth, (req, res) => {
 app.get('/api/me', (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'No autenticado' });
-  res.json({ email: user.email });
+  // Lazy-promote: si no hay admin en la BD, este usuario lo es.
+  let role = user.role;
+  if (role !== 'admin') {
+    const anyAdmin = db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+    if (!anyAdmin) {
+      role = 'admin';
+      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+    }
+  }
+  res.json({ email: user.email, role });
 });
 
 // ---------- Vault endpoints (zero-knowledge: solo ciphertext) ----------

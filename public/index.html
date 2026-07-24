@@ -1120,6 +1120,20 @@ function enterApp(){
   resetAutoLockTimer();
   renderNav();
   goTo('dashboard');
+  restoreCloudSession();
+}
+
+// Restaura la sesion de la nube tras recargar/cambiar de dispositivo: la cookie
+// de sesion persiste (HttpOnly), pero el cliente no tiene la clave en memoria.
+// Consultamos /api/me; si es valida, revelamos la UI de nube (Equipo y roles,
+// vault compartido) segun el rol. Para cifrar/descifrar el vault personal o el
+// compartido, el usuario debe pulsar "Bajar" o escribir la frase de equipo.
+async function restoreCloudSession(){
+  const r = await apiJSON('GET', '/api/me');
+  if (!r.ok) return; // no hay sesion: el panel de nube queda en "inicia sesion"
+  cloudSessionRole = (r.data && r.data.role) || 'member';
+  showLoggedIn(r.data.email);
+  if (cloudSessionRole === 'admin') loadTeam();
 }
 
 function lockVault(){
