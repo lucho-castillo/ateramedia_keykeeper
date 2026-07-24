@@ -32,6 +32,15 @@ fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 // Fase 2: roles de equipo (admin/editor/viewer/member) + vault compartido
 // zero-knowledge (org_vault). El server solo guarda ciphertext + salt.
 const ROLES = ['admin', 'editor', 'viewer', 'member'];
+// Dueño de la cuenta (owner) garantizado admin sin importar el estado de la BD.
+// Esto asegura que el panel "Equipo y roles" siempre esté disponible para el owner.
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'luis.castillo@ateramedia.com').toLowerCase();
+
+// Rol efectivo: el correo owner SIEMPRE es admin (override del valor en BD).
+function effectiveRole(user){
+  if (user && user.email && user.email.toLowerCase() === OWNER_EMAIL) return 'admin';
+  return (user && user.role) || 'member';
+}
 const db = new DatabaseSync(DB_PATH);
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -240,7 +249,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
   db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)')
     .run(token, user.id, Date.now() + SESSION_TTL * 1000);
   setSessionCookie(res, token);
-  res.json({ ok: true, email: user.email, vaultSalt, role });
+  res.json({ ok: true, email: user.email, vaultSalt, role: effectiveRole(user) });
 });
 
 app.post('/api/logout', requireAuth, (req, res) => {
@@ -262,7 +271,7 @@ app.get('/api/me', (req, res) => {
       db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
     }
   }
-  res.json({ email: user.email, role });
+  res.json({ email: user.email, role: effectiveRole(user) });
 });
 
 // ---------- Vault endpoints (zero-knowledge: solo ciphertext) ----------
