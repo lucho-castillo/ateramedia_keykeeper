@@ -28,6 +28,10 @@ const SESSION_TTL = 30 * 24 * 3600;                    // 30 dias
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 // ---------- Base de datos ----------
+// ---------- Base de datos ----------
+// Fase 2: roles de equipo (admin/editor/viewer/member) + vault compartido
+// zero-knowledge (org_vault). El server solo guarda ciphertext + salt.
+const ROLES = ['admin', 'editor', 'viewer', 'member'];
 const db = new DatabaseSync(DB_PATH);
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -35,6 +39,8 @@ db.exec(`
     email      TEXT UNIQUE NOT NULL,
     pw_hash    TEXT NOT NULL,
     pw_salt    TEXT NOT NULL,
+    vault_salt TEXT NOT NULL,   -- salt ESTABLE del vault en nube (reproducible entre dispositivos)
+    role       TEXT NOT NULL DEFAULT 'member',  -- admin | editor | viewer | member
     created_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS sessions (
@@ -49,7 +55,20 @@ db.exec(`
     version    INTEGER NOT NULL DEFAULT 0,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS org_vault (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),  -- unico vault compartido del equipo
+    org_salt   TEXT NOT NULL,   -- salt estable del vault compartido (reproducible por frase de equipo)
+    meta       TEXT,
+    data       TEXT,
+    version    INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
 `);
+// Asegura que exista la fila de org_vault (lazily, con un salt estable).
+(function ensureOrgVault(){
+  const row = db.prepare('SELECT id FROM org_vault WHERE id = 1').get();
+  if (!row) db.prepare('INSERT INTO org_vault (id, org_salt, version, updated_at) VALUES (1, ?, 0, ?)').run(newSalt(), Date.now());
+})();
 
 // ---------- Helpers cripto ----------
 function hashPassword(password, saltHex) {
@@ -131,7 +150,7 @@ function currentUser(req) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     return null;
   }
-  const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(row.user_id);
+  const user = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(row.user_id);
   return user || null;
 }
 function requireAuth(req, res, next) {
@@ -155,10 +174,14 @@ app.post('/api/register', registerLimiter, (req, res) => {
   if (existing) {
     return res.status(409).json({ error: 'Ese correo ya esta registrado' });
   }
+  // El PRIMER usuario registrado se vuelve admin del equipo (define estructura/roles).
+  const isFirst = db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0;
+  const role = isFirst ? 'admin' : 'member';
   const salt = newSalt();
   const hash = hashPassword(password, salt);
-  const info = db.prepare('INSERT INTO users (email, pw_hash, pw_salt, created_at) VALUES (?, ?, ?, ?)')
-    .run(email, hash, salt, Date.now());
+  const vaultSalt = newSalt();   // estable: define la clave del vault en la nube
+  const info = db.prepare('INSERT INTO users (email, pw_hash, pw_salt, vault_salt, role, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(email, hash, salt, vaultSalt, role, Date.now());
   const userId = info.lastInsertRowid;
   // crea fila de vault vacia
   db.prepare('INSERT OR IGNORE INTO vault (user_id, meta, data, version, updated_at) VALUES (?, NULL, NULL, 0, ?)')
@@ -167,7 +190,7 @@ app.post('/api/register', registerLimiter, (req, res) => {
   db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)')
     .run(token, userId, Date.now() + SESSION_TTL * 1000);
   setSessionCookie(res, token);
-  res.json({ ok: true, email });
+  res.json({ ok: true, email, vaultSalt, role });
 });
 
 app.post('/api/login', loginLimiter, (req, res) => {
@@ -181,11 +204,18 @@ app.post('/api/login', loginLimiter, (req, res) => {
   if (!timingSafeEqual(hash, user.pw_hash)) {
     return res.status(401).json({ error: 'Correo o contrasena incorrectos' });
   }
+  // vault_salt estable: si la cuenta es vieja (sin columna), lo generamos una
+  // vez y lo guardamos; así la clave del vault en nube es reproducible.
+  let vaultSalt = user.vault_salt;
+  if (!vaultSalt) {
+    vaultSalt = newSalt();
+    db.prepare('UPDATE users SET vault_salt = ? WHERE id = ?').run(vaultSalt, user.id);
+  }
   const token = newToken();
   db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)')
     .run(token, user.id, Date.now() + SESSION_TTL * 1000);
   setSessionCookie(res, token);
-  res.json({ ok: true, email: user.email });
+  res.json({ ok: true, email: user.email, vaultSalt, role: user.role });
 });
 
 app.post('/api/logout', requireAuth, (req, res) => {
@@ -226,6 +256,77 @@ app.put('/api/vault/data', requireAuth, (req, res) => {
     'ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, version = version + 1, updated_at = excluded.updated_at')
     .run(req.user.id, value, Date.now());
   const row = db.prepare('SELECT version FROM vault WHERE user_id = ?').get(req.user.id);
+  res.json({ ok: true, version: row.version });
+});
+
+// ---------- Equipo / roles (Fase 2) ----------
+// Solo el admin gestiona usuarios. Roles: admin | editor | viewer | member.
+function requireRole(...roles) {
+  return (req, res, next) => {
+    const user = currentUser(req);
+    if (!user) return res.status(401).json({ error: 'No autenticado' });
+    if (!roles.includes(user.role)) return res.status(403).json({ error: 'No tienes permiso para esto' });
+    req.user = user;
+    next();
+  };
+}
+
+// Lista de miembros (solo admin) — NUNCA expone hashes ni vaults.
+app.get('/api/team', requireRole('admin'), (req, res) => {
+  const rows = db.prepare('SELECT id, email, role, created_at FROM users ORDER BY created_at').all();
+  res.json({ members: rows });
+});
+
+// Admin crea un miembro con rol (el miembro luego inicia sesion con su propia contrasena).
+app.post('/api/team', requireRole('admin'), (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  const role = String(req.body.role || 'member');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Correo no valido' });
+  if (password.length < 8) return res.status(400).json({ error: 'La contrasena debe tener al menos 8 caracteres' });
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Rol no valido' });
+  if (db.prepare('SELECT id FROM users WHERE email = ?').get(email)) return res.status(409).json({ error: 'Ese correo ya esta registrado' });
+  const salt = newSalt();
+  const hash = hashPassword(password, salt);
+  const vaultSalt = newSalt();
+  db.prepare('INSERT INTO users (email, pw_hash, pw_salt, vault_salt, role, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(email, hash, salt, vaultSalt, role, Date.now());
+  res.json({ ok: true, email, role });
+});
+
+// Admin cambia el rol de un miembro.
+app.put('/api/team/:id/role', requireRole('admin'), (req, res) => {
+  const id = Number(req.params.id);
+  const role = String(req.body.role || '');
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Rol no valido' });
+  if (req.user.id === id) return res.status(400).json({ error: 'No puedes cambiar tu propio rol' });
+  const info = db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+  if (info.changes === 0) return res.status(404).json({ error: 'Miembro no encontrado' });
+  res.json({ ok: true, role });
+});
+
+// ---------- Vault compartido del equipo (zero-knowledge) ----------
+// El blob se cifra en el CLIENTE con una clave derivada de una "frase de equipo"
+// + org_salt (estable, publico). El server SOLO guarda ciphertext + meta.
+// Permisos: editor/admin escriben; viewer/member/editor/admin leen.
+app.get('/api/org/vault/meta', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT org_salt, meta, version FROM org_vault WHERE id = 1').get();
+  res.json({ orgSalt: row.org_salt, value: row.meta, version: row.version });
+});
+app.get('/api/org/vault/data', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT data, version FROM org_vault WHERE id = 1').get();
+  res.json({ value: row.data, version: row.version });
+});
+app.put('/api/org/vault/meta', requireRole('admin', 'editor'), (req, res) => {
+  const value = req.body && typeof req.body.value === 'string' ? req.body.value : null;
+  db.prepare('UPDATE org_vault SET meta = ?, version = version + 1, updated_at = ? WHERE id = 1').run(value, Date.now());
+  const row = db.prepare('SELECT version FROM org_vault WHERE id = 1').get();
+  res.json({ ok: true, version: row.version });
+});
+app.put('/api/org/vault/data', requireRole('admin', 'editor'), (req, res) => {
+  const value = req.body && typeof req.body.value === 'string' ? req.body.value : null;
+  db.prepare('UPDATE org_vault SET data = ?, version = version + 1, updated_at = ? WHERE id = 1').run(value, Date.now());
+  const row = db.prepare('SELECT version FROM org_vault WHERE id = 1').get();
   res.json({ ok: true, version: row.version });
 });
 

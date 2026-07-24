@@ -2,7 +2,33 @@
 
 Este documento explica paso a paso cómo usar la **sincronización en la nube** del
 gestor de contraseñas AteraMedia para tener tus credenciales disponibles en
-varios dispositivos (PC, celular, tablet) sin enviar jamás tu clave maestra al servidor.
+varios dispositivos (PC Windows, Mac, iPhone/Android) sin enviar jamás tu
+clave maestra al servidor.
+
+---
+
+## 0. Rescate de información ya anotada (multi-dispositivo)
+
+Si tus credenciales YA están en la nube (subidas desde otro dispositivo),
+recuperarlas en un equipo nuevo es inmediato:
+
+1. Abre la app (URL de Railway o `index.html` local) y crea tu **clave maestra del vault**.
+   - IMPORTANTE: usa la **misma clave maestra** que en el equipo origen, si quieres
+     ver las credenciales existentes. El vault en nube se cifra con una clave derivada
+     de tu clave maestra + un `salt` estable del servidor, así que es reproducible
+     entre dispositivos.
+2. Ve a **Ajustes → Sincronizar entre dispositivos (nube)**.
+3. Escribe el **mismo correo** y tu **contraseña de cuenta** que usaste al subir,
+   pulsa **Iniciar sesión**.
+4. Al entrar, la app **baja automáticamente** el vault y lo fusiona.
+
+Si los datos están en un **archivo .skvault** (respaldo manual): usa
+**Ajustes → Respaldo manual → Importar y fusionar** (en iPhone pega el contenido
+manualmente) y luego **Subir vault a la nube ↑** para que aparezca en todos lados.
+
+> Si antes veías el error "mínimo 8 caracteres" en el iPhone, ya está corregido:
+> el service worker se renovó (v9) y el vault en nube usa un salt estable. No hace
+> falta borrar datos de sitio; una recarga basta.
 
 ---
 
@@ -138,3 +164,40 @@ contiene el vault cifrado y el `meta` (salt + verifier), nunca en texto plano.
 **¿Y si borro la app del celular?**
 Tus credenciales siguen en el servidor (cifradas). Reinstala, inicia sesión y pulsa
 "Bajar". Lo que había en el dispositivo se pierde, no lo de la nube.
+
+---
+
+## 9. Equipo y roles (multi-usuario)
+
+El **primer usuario** que se registra se vuelve **admin** del equipo. Desde
+**Ajustes → Equipo y roles (Admin)** el admin:
+
+- Crea miembros con su propia contraseña de cuenta y les asigna un rol.
+- Cambia el rol de cualquier miembro (menos el suyo).
+
+Roles y permisos:
+
+| Rol | Puede ver vault compartido | Puede editar vault compartido | Gestiona equipo |
+|-----|-----------------------------|---------------------------------|------------------|
+| **admin** | sí | sí | sí (crear/cambiar roles) |
+| **editor** | sí | sí | no |
+| **viewer** | sí (solo lectura) | no | no |
+| **member** | no (usa su vault personal) | no | no |
+
+### Vault compartido del equipo (zero-knowledge)
+
+Además del vault personal, hay un **vault compartido** accesible por
+editor/viewer/admin. Se cifra en el cliente con una **frase de equipo** que el
+admin comparte por otro canal (WhatsApp, correo, presencial) — **esa frase NUNCA
+se envía al servidor**. La clave se deriva de la frase + un `org_salt` estable
+que el servidor sí devuelve (es público y no sirve sin la frase).
+
+Flujo:
+1. Admin (o editor) escribe la **frase de equipo** y pulsa **Subir vault compartido ↑**.
+2. Cualquier miembro con la **misma frase** pulsa **Bajar vault compartido ↓**
+   y descifra lo mismo. Quien no sepa la frase no puede leerlo, aunque el
+   servidor le entregue el blob cifrado.
+3. Viewer puede BAJAR pero no SUBIR (el servidor le responde 403 al escribir).
+
+El servidor solo guarda ciphertext + `org_salt`; la frse de equipo y la clave
+derivada nunca salen del dispositivo.

@@ -1668,6 +1668,42 @@ function renderSettings(c){
         <a href="README-SINCRONIZACION-NUBE.md" target="_blank" rel="noopener noreferrer" class="hint" style="display:inline-flex;align-items:center;gap:5px;color:var(--brass-soft);text-decoration:underline;margin-top:6px;">Ayuda: cómo usar la sincronización en la nube →</a>
       </div>
     </div>
+    <div class="settings-section" id="teamSection" style="display:none;">
+      <h3>Equipo y roles (Admin)</h3>
+      <p class="hint" style="margin-bottom:12px;line-height:1.6;">Como admin defines la estructura: creas usuarios y les asignas un rol. Los roles controlan quén puede ver/editar el vault compartido del equipo.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="field" style="margin-bottom:0;flex:1;min-width:180px;"><label>Correo del miembro</label><input type="email" id="teamEmail" placeholder="nuevo@equ.com" autocomplete="off"></div>
+        <div class="field" style="margin-bottom:0;flex:1;min-width:160px;"><label>Contraseña de cuenta</label><input type="password" id="teamPw" placeholder="mín. 8" autocomplete="new-password"></div>
+        <div class="field" style="margin-bottom:0;min-width:130px;"><label>Rol</label>
+          <select id="teamRole" style="width:100%;padding:9px 10px;border-radius:10px;background:var(--bg-2);color:var(--text);border:1px solid var(--line);">
+            <option value="editor">Editor (edita vault)</option>
+            <option value="viewer">Viewer (solo lectura)</option>
+            <option value="member">Member (vault propio)</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" id="teamAddBtn">Crear miembro</button>
+      </div>
+      <div style="margin-top:10px;"><span id="teamStatus" style="font-size:12.5px;color:var(--text-dim);"></span></div>
+      <div style="margin-top:14px;overflow:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="text-align:left;color:var(--text-dim);"><th style="padding:6px 8px;">Correo</th><th style="padding:6px 8px;">Rol</th><th style="padding:6px 8px;"></th></tr></thead>
+          <tbody id="teamList"></tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:10px;">Rol "Member" solo usa su vault personal. "Editor"/"Viewer" acceden al vault compartido. El admin no puede cambiarse su propio rol.</p>
+    </div>
+    <div class="settings-section" id="orgVaultSection" style="display:none;">
+      <h3>Vault compartido del equipo</h3>
+      <p class="hint" style="margin-bottom:12px;line-height:1.6;">Credenciales compartidas entre el equipo. Se cifran con una <b>frase de equipo</b> que tu admin comparte por otro canal (no se envía al servidor). Quien conozca la frase + el salt puede descifrar.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="field" style="margin-bottom:0;flex:1;min-width:200px;"><label>Frase de equipo</label><input type="password" id="orgPhrase" placeholder="frase secreta del equipo" autocomplete="off"></div>
+        <button class="btn btn-primary btn-sm" id="orgPullBtn">Bajar vault compartido ↓</button>
+        <button class="btn btn-sm" id="orgPushBtn">Subir vault compartido ↑</button>
+        <span id="orgStatus" style="font-size:12.5px;color:var(--text-dim);"></span>
+      </div>
+      <p class="hint" style="margin-top:10px;" id="orgPermNote"></p>
+    </div>
     <div class="settings-section">
       <h3>Respaldo manual (archivo .skvault)</h3>
       <p class="hint" style="margin-bottom:14px;line-height:1.6;">Método alternativo sin servidor: exporta un backup cifrado y transfiérelo a tu otro dispositivo. Al importarlo se fusiona sin perder nada.</p>
@@ -1919,7 +1955,7 @@ function safeUrl(u){
    el vault YA cifrado. La clave maestra nunca se envía. El IndexedDB local
    queda como caché offline; la nube es la fuente de verdad entre dispositivos. */
 const CLOUD_STATE = { loggedIn: false, email: null };
-let cloudSessionKey = null, cloudSessionSalt = null, cloudSessionVerifier = null;
+let cloudSessionKey = null, cloudSessionSalt = null, cloudSessionVerifier = null, cloudSessionRole = 'member';
 
 async function apiJSON(method, path, body){
   const res = await fetch(path, {
@@ -1943,11 +1979,31 @@ function wireCloudUI(){
     CLOUD_STATE.loggedIn = true; CLOUD_STATE.email = email;
     acctArea.classList.add('hidden');
     syncArea.classList.remove('hidden');
+    // Secciones de equipo según rol (zero-knowledge: el server solo da ciphertext).
+    const teamSec = document.getElementById('teamSection');
+    const orgSec = document.getElementById('orgVaultSection');
+    if (teamSec) teamSec.style.display = (cloudSessionRole === 'admin') ? '' : 'none';
+    if (orgSec) {
+      // editor/viewer acceden al vault compartido; member solo ve si es admin.
+      const canOrg = ['admin','editor','viewer'].includes(cloudSessionRole);
+      orgSec.style.display = canOrg ? '' : 'none';
+      const note = document.getElementById('orgPermNote');
+      if (note) note.textContent = (cloudSessionRole === 'viewer')
+        ? 'Tu rol es Viewer: puedes BAJAR el vault compartido, pero no subirlo.'
+        : (cloudSessionRole === 'admin' || cloudSessionRole === 'editor')
+          ? 'Tu rol puede subir y bajar el vault compartido del equipo.'
+          : '';
+    }
+    if (cloudSessionRole === 'admin') loadTeam();
   }
   function showLoggedOut(){
     CLOUD_STATE.loggedIn = false; CLOUD_STATE.email = null;
     acctArea.classList.remove('hidden');
     syncArea.classList.add('hidden');
+    const teamSec = document.getElementById('teamSection');
+    const orgSec = document.getElementById('orgVaultSection');
+    if (teamSec) teamSec.style.display = 'none';
+    if (orgSec) orgSec.style.display = 'none';
   }
 
   document.getElementById('cloudRegBtn').addEventListener('click', async ()=>{
@@ -1955,13 +2011,14 @@ function wireCloudUI(){
     const pw = document.getElementById('cloudPw').value;
     statusEl.style.color = 'var(--text-dim)';
     statusEl.textContent = 'Creando cuenta…';
-    const salt = CryptoJS.lib.WordArray.random(16).toString();
-    const key = deriveKey(pw, salt);
-    const verifier = verifierOf(key);
-    const vaultEnc = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, key);
-    const r = await apiJSON('POST', '/api/register', { email, password: pw, salt, verifier, vault: vaultEnc });
+    const r = await apiJSON('POST', '/api/register', { email, password: pw, salt: '', verifier: '', vault: '' });
     if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'No se pudo crear la cuenta.'; return; }
-    cloudSessionKey = key; cloudSessionSalt = salt; cloudSessionVerifier = verifier;
+    // vault_salt estable del server: define la clave del vault en la nube (reproducible
+    // entre dispositivos). Lo usamos como salt para derivar cloudSessionKey.
+    const vaultSalt = (r.data && r.data.vaultSalt) || '';
+    const key = deriveKey(pw, vaultSalt);
+    const verifier2 = verifierOf(key);
+    cloudSessionKey = key; cloudSessionSalt = vaultSalt; cloudSessionVerifier = verifier2;
     showLoggedIn(email);
     syncStatusEl.textContent = 'Cuenta creada y vault inicial guardado.';
     showToast('Cuenta creada en la nube');
@@ -1972,12 +2029,15 @@ function wireCloudUI(){
     const pw = document.getElementById('cloudPw').value;
     statusEl.style.color = 'var(--text-dim)';
     statusEl.textContent = 'Iniciando sesión…';
-    const salt = CryptoJS.lib.WordArray.random(16).toString();
-    const key = deriveKey(pw, salt);
-    const verifier = verifierOf(key);
-    const r = await apiJSON('POST', '/api/login', { email, password: pw, salt, verifier });
+    const r = await apiJSON('POST', '/api/login', { email, password: pw });
     if(!r.ok){ statusEl.style.color = 'var(--danger-soft)'; statusEl.textContent = (r.data && r.data.error) || 'Credenciales incorrectas.'; return; }
-    cloudSessionKey = key; cloudSessionSalt = salt; cloudSessionVerifier = verifier;
+    // vault_salt estable del server: define la clave del vault en la nube. Igual en
+    // cualquier dispositivo => el vault subido se descifra al bajarlo en otro equipo.
+    const vaultSalt = (r.data && r.data.vaultSalt) || '';
+    const key = deriveKey(pw, vaultSalt);
+    const verifier2 = verifierOf(key);
+    cloudSessionKey = key; cloudSessionSalt = vaultSalt; cloudSessionVerifier = verifier2;
+    cloudSessionRole = (r.data && r.data.role) || 'member';
     showLoggedIn(email);
     syncStatusEl.textContent = 'Sesión iniciada.';
     showToast('Sesión iniciada en la nube');
@@ -1988,11 +2048,94 @@ function wireCloudUI(){
   document.getElementById('cloudPullBtn').addEventListener('click', ()=> cloudPull(false));
   document.getElementById('cloudLogoutBtn').addEventListener('click', async ()=>{
     await apiJSON('POST', '/api/logout');
-    cloudSessionKey = null; cloudSessionSalt = null; cloudSessionVerifier = null;
+    cloudSessionKey = null; cloudSessionSalt = null; cloudSessionVerifier = null; cloudSessionRole = 'member';
     showLoggedOut();
     statusEl.textContent = '';
     showToast('Sesión de la nube cerrada');
   });
+
+  // ---------- Equipo / roles (Fase 2) ----------
+  async function loadTeam(){
+    const el = document.getElementById('teamStatus');
+    const tbody = document.getElementById('teamList');
+    const r = await apiJSON('GET', '/api/team');
+    if(!r.ok){ if(el){ el.style.color='var(--danger-soft)'; el.textContent = (r.data&&r.data.error)||'No se pudo cargar el equipo.'; } return; }
+    const members = (r.data && r.data.members) || [];
+    if(tbody){
+      tbody.innerHTML = members.map(m=>{
+        const canChange = m.email !== CLOUD_STATE.email;
+        const sel = ['admin','editor','viewer','member'].map(role=>
+          `<option value="${role}" ${m.role===role?'selected':''}>${role}</option>`).join('');
+        return `<tr>
+          <td style="padding:6px 8px;">${escapeHTML(m.email)}</td>
+          <td style="padding:6px 8px;"><select data-uid="${m.id}" class="teamRoleSel" ${canChange?'':'disabled'} style="background:var(--bg-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 8px;">${sel}</select></td>
+          <td style="padding:6px 8px;">${canChange?`<button class="btn btn-ghost btn-sm teamRoleBtn" data-uid="${m.id}">Guardar</button>`:'<span class="hint">tú</span>'}</td>
+        </tr>`;
+      }).join('');
+      tbody.querySelectorAll('.teamRoleBtn').forEach(b=> b.addEventListener('click', async ()=>{
+        const uid = b.getAttribute('data-uid');
+        const sel = tbody.querySelector(`.teamRoleSel[data-uid="${uid}"]`);
+        const role = sel && sel.value;
+        const rr = await apiJSON('PUT', `/api/team/${uid}/role`, { role });
+        if(rr.ok){ if(el){ el.style.color='var(--success)'; el.textContent='Rol actualizado.'; } }
+        else { if(el){ el.style.color='var(--danger-soft)'; el.textContent=(rr.data&&rr.data.error)||'Error al cambiar rol.'; } }
+      }));
+    }
+  }
+  document.getElementById('teamAddBtn').addEventListener('click', async ()=>{
+    const el = document.getElementById('teamStatus');
+    const email = document.getElementById('teamEmail').value.trim();
+    const pw = document.getElementById('teamPw').value;
+    const role = document.getElementById('teamRole').value;
+    el.style.color = 'var(--text-dim)'; el.textContent = 'Creando miembro…';
+    const r = await apiJSON('POST', '/api/team', { email, password: pw, role });
+    if(!r.ok){ el.style.color='var(--danger-soft)'; el.textContent=(r.data&&r.data.error)||'No se pudo crear.'; return; }
+    el.style.color='var(--success)'; el.textContent=`Miembro ${email} creado como ${role}.`;
+    document.getElementById('teamEmail').value=''; document.getElementById('teamPw').value='';
+    loadTeam();
+  });
+
+  // ---------- Vault compartido del equipo (zero-knowledge) ----------
+  let orgSessionKey = null, orgSessionSalt = null;
+  async function orgPull(){
+    const el = document.getElementById('orgStatus');
+    const phrase = document.getElementById('orgPhrase').value;
+    if(!phrase){ el.style.color='var(--danger-soft)'; el.textContent='Escribe la frase de equipo.'; return; }
+    const rMeta = await apiJSON('GET', '/api/org/vault/meta');
+    if(!rMeta.ok){ el.style.color='var(--danger-soft)'; el.textContent=(rMeta.data&&rMeta.data.error)||'Error al bajar.'; return; }
+    const rData = await apiJSON('GET', '/api/org/vault/data');
+    if(!rData.ok){ el.style.color='var(--danger-soft)'; el.textContent=(rData.data&&rData.data.error)||'Error al bajar.'; return; }
+    const orgSalt = rMeta.data && rMeta.data.orgSalt;
+    if(!orgSalt){ el.style.color='var(--danger-soft)'; el.textContent='El servidor no devolvió el salt del equipo.'; return; }
+    orgSessionSalt = orgSalt;
+    orgSessionKey = deriveKey(phrase, orgSalt);
+    const remote = rData.data && rData.data.value;
+    if(!remote){ el.style.color='var(--text-dim)'; el.textContent='El vault compartido está vacío.'; return; }
+    let imported;
+    try { imported = decryptVault(remote, orgSessionKey); }
+    catch(e){ el.style.color='var(--danger-soft)'; el.textContent='No se pudo descifrar (frase distinta).'; return; }
+    const summary = mergeVaultData(imported);
+    persistVault();
+    renderView(currentView);
+    el.style.color='var(--success)';
+    el.textContent=`Vault compartido bajado ✓ (${summary.addedCreds} nuevas, ${summary.updatedCreds} actualizadas)`;
+    showToast('Vault compartido sincronizado');
+  }
+  async function orgPush(){
+    const el = document.getElementById('orgStatus');
+    const phrase = document.getElementById('orgPhrase').value;
+    if(!phrase){ el.style.color='var(--danger-soft)'; el.textContent='Escribe la frase de equipo.'; return; }
+    if(!orgSessionKey || !orgSessionSalt){ el.style.color='var(--text-dim)'; el.textContent='Primero BAJA para cargar la frase/salt del equipo.'; return; }
+    if(cloudSessionRole==='viewer'){ el.style.color='var(--danger-soft)'; el.textContent='Tu rol (Viewer) solo puede bajar, no subir.'; return; }
+    el.style.color='var(--text-dim)'; el.textContent='Subiendo…';
+    const orgEnc = encryptVault(vault || { credentials:[], groups:DEFAULT_GROUPS.slice() }, orgSessionKey);
+    const rData = await apiJSON('PUT', '/api/org/vault/data', { value: orgEnc });
+    if(!rData.ok){ el.style.color='var(--danger-soft)'; el.textContent=(rData.data&&rData.data.error)||'Error al subir.'; return; }
+    el.style.color='var(--success)'; el.textContent='Vault compartido subido a la nube ✓';
+    showToast('Vault compartido subido');
+  }
+  document.getElementById('orgPullBtn').addEventListener('click', ()=> orgPull());
+  document.getElementById('orgPushBtn').addEventListener('click', ()=> orgPush());
 }
 
 async function cloudPush(){
