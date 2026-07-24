@@ -70,6 +70,21 @@ db.exec(`
   if (!row) db.prepare('INSERT INTO org_vault (id, org_salt, version, updated_at) VALUES (1, ?, 0, ?)').run(newSalt(), Date.now());
 })();
 
+// Migracion de esquema: cuentas creadas ANTES de Fase1/Fase2 tienen la
+// tabla `users` sin `vault_salt` ni `role`. SQLite no las anade con
+// CREATE TABLE IF NOT EXISTS, asi que las agregamos aqui si faltan. Sin
+// esto, el login de cuentas existenes crashea con "no such column".
+(function migrateUsersSchema(){
+  const cols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!cols.includes('vault_salt')) {
+    db.exec("ALTER TABLE users ADD COLUMN vault_salt TEXT");
+  }
+  if (!cols.includes('role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+    // Si no hay ningun admin (cuenta vieja), el primer login lo promovera.
+  }
+})();
+
 // ---------- Helpers cripto ----------
 function hashPassword(password, saltHex) {
   // scrypt: coste elevado, resistente a hardware
