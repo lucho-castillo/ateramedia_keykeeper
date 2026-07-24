@@ -13,3 +13,8 @@ Thumbs.db
 
 # Archivos de verificacion ad-hoc de Hermes (en Temp, por si acaso)
 hermes-verify-*
+
+# Carpeta antigua server/ (estructura previa con rootDir=server). El codigo
+# vive en la RAIZ del repo; esta carpeta es un residuo que confunde al clonar
+# en otro equipo. Ignorada a proposito.
+server/

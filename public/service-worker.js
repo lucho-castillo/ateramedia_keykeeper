@@ -1,7 +1,7 @@
 // AteraMedia Passwords Manager — Service Worker
 // Cachea toda la app (app shell + librerías + fuentes) para que funcione 100% offline
 // una vez instalada/visitada por primera vez.
-const CACHE_NAME = 'supreme-key-cache-v8';
+const CACHE_NAME = 'supreme-key-cache-v9';
 const ASSETS = [
   './',
   './index.html',
